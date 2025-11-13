@@ -3,6 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_windows
+  media_key_detector_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

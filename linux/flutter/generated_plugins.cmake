@@ -3,6 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_linux
+  media_key_detector_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
