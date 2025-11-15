@@ -1,15 +1,45 @@
-# tts_flutter_test
+# TTS Flutter Test
 
-A new Flutter project.
+A Flutter application for Text-to-Speech synthesis with support for multiple TTS services (Gemini, OpenAI) and audio playback features.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- 🎤 **Speech Synthesis**: Convert text to speech using Gemini or OpenAI TTS services
+- 🎵 **Audio Playback**: Play audio files with full controls (play, pause, seek, volume, speed)
+- 📁 **File Picker**: Load audio files from your device
+- ⌨️ **Media Keys**: Support for media keys on desktop platforms (macOS, Windows, Linux)
+- ⚙️ **Settings**: Customizable TTS and playback settings
 
-A few resources to get you started if this is your first Flutter project:
+## Architecture
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+The app uses Python scripts directly via platform channels - **no server required**. See [GUIDE.md](./GUIDE.md#architecture-overview) for details.
+
+## Quick Start
+
+1. **Set up Python scripts** (see [GUIDE.md](./GUIDE.md#setup--installation)):
+   - Install Python dependencies
+   - Configure API keys in `backend/python/.env`
+
+2. **Run the Flutter app**:
+   ```bash
+   flutter pub get
+   flutter run
+   ```
+
+## Documentation
+
+- [GUIDE.md](./GUIDE.md) - Complete guide covering setup, building, testing, and troubleshooting
+
+## Platform Support
+
+- ✅ macOS
+- ✅ iOS
+- ✅ Android
+- ✅ Linux
+- ✅ Windows
+- ✅ Web
+
+## Getting Started with Flutter
 
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,

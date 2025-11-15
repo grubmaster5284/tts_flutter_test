@@ -12,10 +12,13 @@ class ServiceSelectorWidget extends ConsumerWidget {
     final state = ref.watch(speechSynthesisNotifierProvider);
     
     return DropdownButtonFormField<TTSServiceModel>(
+      key: ValueKey('service_selector_${state.selectedService.name}'),
       initialValue: state.selectedService,
       decoration: const InputDecoration(
         labelText: 'TTS Service',
+        hintText: 'Select a TTS service',
         border: OutlineInputBorder(),
+        helperText: 'Choose Gemini or OpenAI (Polly not yet implemented)',
       ),
       items: TTSServiceModel.values.map((service) {
         return DropdownMenuItem<TTSServiceModel>(

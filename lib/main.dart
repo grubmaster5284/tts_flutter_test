@@ -8,6 +8,7 @@ import 'package:tts_flutter_test/audio_playback/application/providers/audio_play
 import 'package:tts_flutter_test/audio_playback/presentation/widgets/audio_player_widget.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
 import 'package:tts_flutter_test/core/utils/media_key_handler.dart';
+import 'package:tts_flutter_test/speech_synthesis/presentation/pages/speech_synthesis_page.dart';
 
 void main() {
   AppLogger.info('App starting', tag: 'App');
@@ -127,6 +128,17 @@ class _AudioPlayerTestPageState extends ConsumerState<AudioPlayerTestPage> {
       appBar: AppBar(
         title: const Text('Audio Player Test'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.record_voice_over),
+            tooltip: 'Speech Synthesis',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SpeechSynthesisPage(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(_compactMode ? Icons.expand : Icons.compress),
             tooltip: 'Toggle compact mode',

@@ -5,6 +5,7 @@ import 'package:tts_flutter_test/speech_synthesis/data/constants/speech_synthesi
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_request_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_response_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/errors/speech_synthesis_error.dart';
+import 'package:tts_flutter_test/core/utils/logger.dart';
 
 /// Remote service for speech synthesis API calls
 class SpeechSynthesisRemoteService {
@@ -31,34 +32,78 @@ class SpeechSynthesisRemoteService {
   Future<Result<SpeechResponseDto, SpeechSynthesisError>> _synthesizeSpeechInternal(
     SpeechRequestDto request,
   ) async {
+    final url = SpeechSynthesisApiKeys.synthesizeUrl;
+    final requestBody = jsonEncode(request.toJson());
+    
+    AppLogger.debug('Sending TTS request to backend', tag: 'TTSRemoteService', data: {
+      'url': url,
+      'service': request.service,
+      'textLength': request.text.length,
+      'voice': request.voice,
+      'language': request.language,
+      'audioFormat': request.audioFormat,
+    });
+    
     try {
       final response = await _client
           .post(
-            Uri.parse(SpeechSynthesisApiKeys.synthesizeUrl),
+            Uri.parse(url),
             headers: {
               'Content-Type': 'application/json',
             },
-            body: jsonEncode(request.toJson()),
+            body: requestBody,
           )
           .timeout(_timeout);
+      
+      AppLogger.debug('Received response from backend', tag: 'TTSRemoteService', data: {
+        'statusCode': response.statusCode,
+        'bodyLength': response.body.length,
+      });
       
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
         final dto = SpeechResponseDto.fromJson(jsonData);
+        
+        AppLogger.info('TTS request successful', tag: 'TTSRemoteService', data: {
+          'format': dto.audioFormat,
+          'duration': dto.durationMs,
+        });
+        
         return Success(dto);
       } else {
+        AppLogger.warning('TTS request failed with status code', tag: 'TTSRemoteService', data: {
+          'statusCode': response.statusCode,
+          'body': response.body.substring(0, response.body.length > 200 ? 200 : response.body.length),
+        });
+        
         return Failure(
           _mapHttpErrorToDomainError(response.statusCode, response.body),
         );
       }
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      AppLogger.error('Network error during TTS request', tag: 'TTSRemoteService', error: e);
+      
+      // Check if it's a connection refused error (backend not running)
+      if (e.toString().contains('Connection refused') || 
+          e.toString().contains('errno = 61')) {
+        return Failure(SpeechSynthesisError.unknown(
+          'Backend server is not running.\n\nPlease start the Python backend server:\n1. Open terminal\n2. cd backend/python\n3. ./run.sh\n\nOr see BACKEND_START_GUIDE.md for details.'
+        ));
+      }
+      
       return Failure(SpeechSynthesisError.networkError());
     } on FormatException catch (e) {
+      AppLogger.error('Invalid response format', tag: 'TTSRemoteService', error: e);
       return Failure(SpeechSynthesisError.unknown('Invalid response format: ${e.message}'));
-    } catch (e, _) {
+    } catch (e, stackTrace) {
       if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+        AppLogger.error('Request timeout', tag: 'TTSRemoteService', error: e);
         return Failure(const SpeechSynthesisError.timeout());
       }
+      AppLogger.error('Unexpected error during TTS request', 
+          tag: 'TTSRemoteService',
+          error: e,
+          stackTrace: stackTrace);
       return Failure(SpeechSynthesisError.unknown(e.toString()));
     }
   }

@@ -8,6 +8,7 @@ import 'package:tts_flutter_test/speech_synthesis/presentation/widgets/service_s
 import 'package:tts_flutter_test/speech_synthesis/presentation/widgets/text_input_field_widget.dart';
 import 'package:tts_flutter_test/speech_synthesis/presentation/widgets/voice_selector_widget.dart';
 import 'package:tts_flutter_test/core/utils/data_state.dart';
+import 'package:tts_flutter_test/audio_playback/presentation/widgets/audio_player_widget.dart';
 
 /// Main page for speech synthesis
 class SpeechSynthesisPage extends ConsumerWidget {
@@ -48,6 +49,7 @@ class SpeechSynthesisPage extends ConsumerWidget {
             
             // Audio format selector
             DropdownButtonFormField<String>(
+              key: ValueKey('audio_format_$selectedAudioFormat'),
               initialValue: selectedAudioFormat,
               decoration: const InputDecoration(
                 labelText: 'Audio Format',
@@ -75,13 +77,14 @@ class SpeechSynthesisPage extends ConsumerWidget {
                   : () {
                       ref.read(speechSynthesisNotifierProvider.notifier).convertTextToSpeech(
                         text: textInput,
+                        service: state.selectedService,
                         voice: selectedVoice,
                         language: selectedLanguage,
                         audioFormat: selectedAudioFormat,
                       );
                     },
               icon: const Icon(Icons.volume_up),
-              label: const Text('Synthesize Speech'),
+              label: Text('Synthesize Speech (${state.selectedService.name})'),
             ),
             const SizedBox(height: 24),
             
@@ -124,8 +127,8 @@ class SpeechSynthesisPage extends ConsumerWidget {
                 ),
               ),
             
-            // Success display
-            if (state.isSuccess && state.response != null)
+            // Success display with audio player
+            if (state.isSuccess && state.response != null) ...[
               Card(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: Padding(
@@ -172,6 +175,15 @@ class SpeechSynthesisPage extends ConsumerWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              // Audio player for the synthesized audio
+              AudioPlayerWidget(
+                initialAudioSource: state.response!.audioData, // File path from repository
+                showVolumeControl: true,
+                showSpeedControl: true,
+                compact: false,
+              ),
+            ],
           ],
         ),
       ),
