@@ -218,14 +218,41 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     }
 
     try {
+      final playerState = _audioPlayer.state;
+      AppLogger.debug('Current player state', tag: 'AudioPlayer', data: {'state': playerState.toString(), 'appStatus': state.status.toString()});
+      
+      // If already paused, just resume without reloading
+      if (playerState == PlayerState.paused && state.status == PlaybackStatus.paused) {
+        AppLogger.debug('Resuming from paused state', tag: 'AudioPlayer');
+        await _audioPlayer.resume();
+        state = state.copyWith(
+          status: PlaybackStatus.playing,
+          errorMessage: null,
+        );
+        AppLogger.info('Audio resumed from pause', tag: 'AudioPlayer');
+        return;
+      }
+      
       // Check if we need to load the audio source
       final currentSource = _audioPlayer.source;
-      final needsLoad = currentSource == null || 
-                       currentSource.toString() != 'UrlSource(${state.audioSource})';
+      bool needsLoad = currentSource == null || 
+                       playerState == PlayerState.stopped ||
+                       playerState == PlayerState.disposed;
+      
+      // Also check if the source has changed by comparing the source string
+      if (!needsLoad) {
+        final currentSourceStr = currentSource.toString();
+        final expectedSourceStr = state.audioSource!;
+        // Check if source matches (handles both UrlSource and DeviceFileSource)
+        final sourceMatches = currentSourceStr.contains(expectedSourceStr) ||
+                             (currentSourceStr.contains('UrlSource') && expectedSourceStr.startsWith('http')) ||
+                             (currentSourceStr.contains('DeviceFileSource') && !expectedSourceStr.startsWith('http'));
+        needsLoad = !sourceMatches;
+      }
       
       AppLogger.debug('Checking if audio needs to be loaded', 
           tag: 'AudioPlayer', 
-          data: {'needsLoad': needsLoad, 'currentSource': currentSource?.toString()});
+          data: {'needsLoad': needsLoad, 'currentSource': currentSource?.toString(), 'playerState': playerState.toString()});
       
       if (needsLoad) {
         AppLogger.debug('Loading audio before playing', tag: 'AudioPlayer');
@@ -233,8 +260,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
       }
       
       // Resume or play depending on current state
-      final playerState = _audioPlayer.state;
-      AppLogger.debug('Resuming playback', tag: 'AudioPlayer', data: {'currentState': playerState.toString()});
+      AppLogger.debug('Starting playback', tag: 'AudioPlayer', data: {'currentState': playerState.toString()});
       
       if (playerState == PlayerState.paused) {
         await _audioPlayer.resume();

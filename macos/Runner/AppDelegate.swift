@@ -121,16 +121,7 @@ class AppDelegate: FlutterAppDelegate {
       // Try to find credentials in common locations
       let fileManager = FileManager.default
       
-      // 1. Check for application default credentials
-      if let homeDir = env["HOME"] {
-        let adcPath = (homeDir as NSString).appendingPathComponent(".config/gcloud/application_default_credentials.json")
-        if fileManager.fileExists(atPath: adcPath) {
-          // ADC file exists, but we don't need to set GOOGLE_APPLICATION_CREDENTIALS for ADC
-          // The google.auth library will find it automatically
-        }
-      }
-      
-      // 2. Check for service account key in project directory
+      // 1. Check for service account key in project directory (most reliable for sandboxed apps)
       if let projectRoot = findProjectRoot() {
         let serviceAccountPaths = [
           (projectRoot as NSString).appendingPathComponent("backend/python/service-account-key.json"),
@@ -142,6 +133,21 @@ class AppDelegate: FlutterAppDelegate {
           if fileManager.fileExists(atPath: path) {
             env["GOOGLE_APPLICATION_CREDENTIALS"] = path
             break
+          }
+        }
+      }
+      
+      // 2. Try to access application default credentials (may not work in sandbox)
+      // Note: Sandboxed apps may not have access to ~/.config/gcloud/
+      // If this fails, user should use a service account key in the project directory instead
+      if env["GOOGLE_APPLICATION_CREDENTIALS"] == nil {
+        if let homeDir = env["HOME"] {
+          let adcPath = (homeDir as NSString).appendingPathComponent(".config/gcloud/application_default_credentials.json")
+          // Try to read the file to check if we have access (sandbox may block this)
+          if fileManager.isReadableFile(atPath: adcPath) {
+            // We can access it, but ADC doesn't use GOOGLE_APPLICATION_CREDENTIALS env var
+            // The google.auth library will find it automatically if accessible
+            // However, if sandbox blocks it, we'll get an error and user needs to use service account
           }
         }
       }

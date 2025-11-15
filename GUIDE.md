@@ -301,7 +301,15 @@ echo '{"text":"test","service":"openai","voice":"alloy","audio_format":"mp3"}' |
 
 The Gemini TTS service uses Google Cloud Text-to-Speech API, which requires OAuth2 authentication.
 
-### Quick Setup (Recommended for Development)
+### ⚠️ Important: macOS App Sandbox
+
+**If you're running the Flutter app (not just the backend server)**, the app runs in a sandbox which may block access to credentials in your home directory (`~/.config/gcloud/`). 
+
+**For Flutter app usage, we recommend using a Service Account key file** (see below) placed in the project directory, as it's more reliable with sandbox restrictions.
+
+### Quick Setup (For Backend Server Only)
+
+If you're only using the backend server (not the Flutter app), you can use Application Default Credentials:
 
 ```bash
 gcloud auth application-default login
@@ -310,11 +318,15 @@ gcloud auth application-default login
 This command will:
 1. Open a browser window for you to sign in with your Google account
 2. Store credentials in `~/.config/gcloud/application_default_credentials.json`
-3. Allow the app to automatically use these credentials
+3. Allow the backend server to automatically use these credentials
 
 **Note:** Make sure you have the Google Cloud SDK installed. If not, install it from https://cloud.google.com/sdk/docs/install
 
-### Service Account Setup (Recommended for Production)
+**⚠️ For Flutter app:** This method may not work due to sandbox restrictions. Use Service Account setup instead.
+
+### Service Account Setup (Recommended for Flutter App)
+
+**This is the recommended method for Flutter app usage** because it works reliably with macOS app sandbox restrictions.
 
 1. **Create a Service Account:**
    - Go to [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts)
@@ -333,16 +345,18 @@ This command will:
    - Choose "JSON" format
    - Download the key file
 
-4. **Place the Key File:**
+4. **Place the Key File in Project Directory:**
    
-   Place the downloaded JSON key file in one of these locations:
-   - `backend/python/service-account-key.json`
+   **Important:** Place the downloaded JSON key file in one of these locations (the app will automatically find it):
+   - `backend/python/service-account-key.json` ⭐ (recommended)
    - `service-account-key.json` (project root)
    - `.gcloud/service-account-key.json` (project root)
    
-   Or set the environment variable:
+   The app will automatically detect and use the key file from these locations.
+   
+   **Alternative:** Set the environment variable before launching the app:
    ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
+   export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/your/service-account-key.json
    ```
 
 ### Enable the Text-to-Speech API
@@ -353,17 +367,25 @@ This command will:
 
 ### Troubleshooting
 
-**Error: "Your default credentials were not found"**
-- Run `gcloud auth application-default login`
+**Error: "Your default credentials were not found" or "Google Cloud credentials not found"**
+
+- **For Flutter app:** Use a Service Account key file (see Service Account Setup above). Place the key file in the project directory (`backend/python/service-account-key.json`).
+- **For backend server only:** Run `gcloud auth application-default login`
 
 **Error: "API keys are not supported"**
-- Google Cloud TTS requires OAuth2, not API keys. Use one of the authentication methods above.
+- Google Cloud TTS requires OAuth2, not API keys. Use Service Account setup (recommended) or Application Default Credentials.
 
 **Error: "The Text-to-Speech API has not been used"**
-- Enable the Text-to-Speech API in Google Cloud Console.
+- Enable the Text-to-Speech API in Google Cloud Console (see "Enable the Text-to-Speech API" above).
 
 **Error: "Permission denied"**
 - Make sure your service account or user account has the "Cloud Text-to-Speech API User" role.
+
+**Error persists after setting up credentials:**
+- Make sure the service account key file is in one of the project directories listed above
+- Verify the file is valid JSON and not corrupted
+- Check that the Text-to-Speech API is enabled in your Google Cloud project
+- For sandboxed apps, Application Default Credentials may not work - use Service Account key file instead
 
 ---
 

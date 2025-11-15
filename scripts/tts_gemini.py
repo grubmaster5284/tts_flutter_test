@@ -44,13 +44,27 @@ def synthesize(text: str, voice: str = "Kore", language: str = "en-US",
     access_token, error = _get_access_token()
     
     if access_token is None:
-        error_msg = (
-            "Google Cloud TTS not configured. "
-            "Set up authentication using one of:\n"
-            "1. Service account: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n"
-            "2. Application Default Credentials: gcloud auth application-default login\n"
-            f"Error: {error or 'Unknown authentication error'}"
-        )
+        # Provide helpful error message based on context
+        if "was not found" in (error or "") or "default credentials were not found" in (error or ""):
+            error_msg = (
+                "Google Cloud credentials not found.\n\n"
+                "For Flutter app (sandboxed):\n"
+                "  Place a service account key file in one of these locations:\n"
+                "  - backend/python/service-account-key.json (recommended)\n"
+                "  - service-account-key.json (project root)\n"
+                "  - .gcloud/service-account-key.json (project root)\n\n"
+                "For backend server only:\n"
+                "  Run: gcloud auth application-default login\n\n"
+                f"Original error: {error or 'Unknown authentication error'}"
+            )
+        else:
+            error_msg = (
+                "Google Cloud TTS not configured. "
+                "Set up authentication using one of:\n"
+                "1. Service account: Place key file in backend/python/service-account-key.json\n"
+                "2. Application Default Credentials: gcloud auth application-default login\n"
+                f"Error: {error or 'Unknown authentication error'}"
+            )
         return {
             "error": error_msg,
             "success": False
