@@ -5,26 +5,31 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tts_flutter_test/main.dart';
+import 'package:tts_flutter_test/audio_playback/presentation/widgets/audio_player_widget.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App loads and displays audio player page', (WidgetTester tester) async {
+    // Build our app wrapped in ProviderScope (required for Riverpod) and trigger a frame.
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MyApp(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Wait for any async initialization to complete
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the app bar title is displayed
+    expect(find.text('Audio Player Test'), findsOneWidget);
+    
+    // Verify that the "Load Audio" section is displayed (may appear multiple times)
+    expect(find.text('Load Audio'), findsWidgets);
+    
+    // Verify that the audio player widget is present
+    expect(find.byType(AudioPlayerWidget), findsWidgets);
   });
 }

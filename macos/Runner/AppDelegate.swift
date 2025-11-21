@@ -115,7 +115,7 @@ class AppDelegate: FlutterAppDelegate {
     
     // Pass through Google Cloud credentials if available
     // Check for GOOGLE_APPLICATION_CREDENTIALS in environment
-    if let googleCreds = env["GOOGLE_APPLICATION_CREDENTIALS"] {
+    if env["GOOGLE_APPLICATION_CREDENTIALS"] != nil {
       // Already set, will be passed through
     } else {
       // Try to find credentials in common locations

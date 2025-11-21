@@ -1,4 +1,13 @@
-/// Represents available TTS service providers
+/// Domain entity representing available TTS service providers
+/// 
+/// This enum represents the different text-to-speech service providers supported by the app.
+/// Enums in Dart are a type-safe way to represent a fixed set of constants. This enum
+/// is part of the Domain layer and represents a core business concept.
+/// 
+/// The extension provides:
+/// - name: Human-readable name for UI display
+/// - value: String identifier for API/service communication
+/// - fromString: Factory method to convert string to enum
 enum TTSServiceModel {
   gemini,
   openai,

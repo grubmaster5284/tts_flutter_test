@@ -6,6 +6,18 @@ import 'package:tts_flutter_test/core/utils/data_state.dart';
 part 'speech_synthesis_state.freezed.dart';
 
 /// Immutable state class for speech synthesis
+/// 
+/// This class represents the complete state of the speech synthesis system at any given time.
+/// It uses Freezed to generate immutable classes with copyWith methods, ensuring type safety
+/// and preventing accidental state mutations.
+/// 
+/// The state includes:
+/// - dataState: The async state of TTS operations (initial, loading, success, failure)
+/// - selectedService: The currently selected TTS service (Gemini, OpenAI, etc.)
+/// - isRefreshing: Whether a refresh operation is in progress
+/// 
+/// This is part of the Application layer in clean architecture and serves as the single
+/// source of truth for speech synthesis state throughout the app.
 @freezed
 class SpeechSynthesisState with _$SpeechSynthesisState {
   const SpeechSynthesisState._(); // Private constructor for extensions

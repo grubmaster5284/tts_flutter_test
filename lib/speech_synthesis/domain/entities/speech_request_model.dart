@@ -8,6 +8,17 @@ import 'package:tts_flutter_test/speech_synthesis/domain/value_objects/voice_vo.
 part 'speech_request_model.freezed.dart';
 
 /// Domain entity for speech synthesis request
+/// 
+/// This is a domain entity that represents a request to convert text to speech.
+/// Domain entities are part of the Domain layer in clean architecture and represent
+/// core business concepts. They are independent of frameworks and data sources.
+/// 
+/// This entity uses value objects (TextVO, VoiceVO, etc.) to ensure type safety and
+/// validation at the domain level. It uses Freezed to generate immutable classes with
+/// copyWith methods.
+/// 
+/// Entities are different from DTOs (Data Transfer Objects) - entities represent
+/// business concepts, while DTOs represent data structures for communication.
 @freezed
 class SpeechRequestModel with _$SpeechRequestModel {
   const factory SpeechRequestModel({

@@ -2,6 +2,16 @@ import 'package:logger/logger.dart' show Logger, Level, PrettyPrinter, DateTimeF
 
 /// Global logger instance for the application
 /// 
+/// This is a utility class that provides centralized logging throughout the application.
+/// It wraps the logger package and provides a consistent API for logging with different
+/// severity levels (debug, info, warning, error, fatal, verbose).
+/// 
+/// The logger is configured with:
+/// - Pretty printing for readable console output
+/// - Colorful log messages
+/// - Emojis for visual distinction
+/// - Timestamps showing time and duration since app start
+/// 
 /// Usage:
 /// ```dart
 /// AppLogger.info('This is an info message');

@@ -8,18 +8,36 @@ import httpx
 try:
     from google.auth import default
     from google.auth.transport.requests import Request
+    from google.oauth2 import service_account
+    import os
     GOOGLE_AUTH_AVAILABLE = True
 except ImportError:
     GOOGLE_AUTH_AVAILABLE = False
 
+# Required OAuth scopes for Text-to-Speech API
+SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
+
 
 def _get_access_token():
-    """Get OAuth2 access token using Application Default Credentials."""
+    """Get OAuth2 access token using Application Default Credentials with correct scopes."""
     if not GOOGLE_AUTH_AVAILABLE:
         return None, "google-auth library not installed. Install with: pip install google-auth google-auth-httplib2 requests"
     
     try:
-        credentials, project = default()
+        # Try service account key file first (for sandboxed apps)
+        service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if service_account_path and os.path.exists(service_account_path):
+            credentials = service_account.Credentials.from_service_account_file(
+                service_account_path,
+                scopes=SCOPES
+            )
+            # Refresh if needed
+            if not credentials.valid:  # type: ignore
+                credentials.refresh(Request())  # type: ignore
+            return credentials.token, None  # type: ignore
+        
+        # Fall back to Application Default Credentials with scopes
+        credentials, project = default(scopes=SCOPES)
         # Refresh if needed
         if not credentials.valid:  # type: ignore
             credentials.refresh(Request())  # type: ignore

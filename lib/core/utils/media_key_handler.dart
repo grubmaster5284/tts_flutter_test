@@ -4,10 +4,19 @@ import 'package:flutter/services.dart';
 import 'package:media_key_detector/media_key_detector.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
 
-/// Service for handling media key events from the keyboard
+/// Singleton service for handling media key events from the keyboard
 /// 
-/// This service listens to media keys (play/pause, volume, etc.) and
-/// provides callbacks for handling these events.
+/// This service provides a centralized way to listen to media keys (play/pause, rewind,
+/// fast forward, volume up/down) on desktop platforms (macOS, Windows, Linux).
+/// It uses:
+/// - media_key_detector package for play/pause/rewind/fast forward keys
+/// - Platform channels for volume keys (which require native implementation)
+/// 
+/// This is a singleton pattern (accessed via MediaKeyHandler.instance) to ensure
+/// only one instance manages media key listeners throughout the app lifecycle.
+/// 
+/// This service is part of the Core utilities layer and provides cross-cutting
+/// functionality that can be used by any feature module.
 class MediaKeyHandler {
   MediaKeyHandler._();
   

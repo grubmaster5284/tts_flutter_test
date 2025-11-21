@@ -1,25 +1,41 @@
 """Google Gemini TTS service using Google Cloud Text-to-Speech API."""
 import json
+import os
 from typing import Optional, Tuple, Any
 import httpx
 from fastapi import HTTPException
 from google.auth import default
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+
+# Required OAuth scopes for Text-to-Speech API
+SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 
 # Cache for credentials
 _credentials: Optional[Any] = None
 _credentials_error: Optional[str] = None
 
 def _get_credentials() -> Tuple[Optional[Any], Optional[str]]:
-    """Get OAuth2 credentials using Application Default Credentials."""
+    """Get OAuth2 credentials using Application Default Credentials with correct scopes."""
     global _credentials, _credentials_error
     if _credentials is None and _credentials_error is None:
         try:
-            credentials, project = default()
-            # Refresh if needed
-            if not credentials.valid:  # type: ignore
-                credentials.refresh(Request())  # type: ignore
-            _credentials = credentials
+            # Try service account key file first (for sandboxed apps)
+            service_account_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if service_account_path and os.path.exists(service_account_path):
+                _credentials = service_account.Credentials.from_service_account_file(
+                    service_account_path,
+                    scopes=SCOPES
+                )
+                # Refresh if needed
+                if not _credentials.valid:  # type: ignore
+                    _credentials.refresh(Request())  # type: ignore
+            else:
+                # Fall back to Application Default Credentials with scopes
+                _credentials, _ = default(scopes=SCOPES)
+                # Refresh if needed
+                if not _credentials.valid:  # type: ignore
+                    _credentials.refresh(Request())  # type: ignore
         except Exception as e:
             _credentials_error = str(e)
     return _credentials, _credentials_error

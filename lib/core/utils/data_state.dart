@@ -2,7 +2,23 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'data_state.freezed.dart';
 
-/// Represents the state of async data operations
+/// Sealed class representing the state of async data operations
+/// 
+/// This is a generic state machine for handling asynchronous operations in a type-safe way.
+/// It uses Freezed to generate immutable classes and follows a sealed class pattern,
+/// which ensures exhaustive pattern matching.
+/// 
+/// The state can be one of:
+/// - initial: No operation has been started yet
+/// - loading: An operation is currently in progress
+/// - success: Operation completed successfully with a value of type T
+/// - failure: Operation failed with an error
+/// 
+/// This pattern is commonly used in Flutter apps with Riverpod/Bloc for managing
+/// async state without using FutureBuilder or StreamBuilder directly in widgets.
+/// It provides better type safety and makes state transitions explicit.
+/// 
+/// This is part of the Core utilities layer and can be reused across different features.
 @freezed
 sealed class DataState<T> with _$DataState<T> {
   const factory DataState.initial() = _Initial<T>;

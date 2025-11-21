@@ -2,7 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tts_flutter_test/settings/application/state/settings_state.dart';
 
-/// Keys for SharedPreferences
+/// Constants for SharedPreferences keys
+/// 
+/// This class defines all the keys used to store settings in SharedPreferences.
+/// Centralizing keys here makes it easier to maintain and prevents typos.
+/// These keys are used by SettingsNotifier to persist and retrieve user preferences.
 class SettingsKeys {
   static const String defaultTtsService = 'default_tts_service';
   static const String defaultVoice = 'default_voice';
@@ -13,7 +17,20 @@ class SettingsKeys {
   static const String themePreference = 'theme_preference';
 }
 
-/// StateNotifier for managing settings state
+/// [StateNotifier] for managing settings state and operations
+/// 
+/// This class extends `StateNotifier<SettingsState>` and serves as the business logic layer
+/// for app settings. It manages:
+/// - Loading settings from SharedPreferences on initialization
+/// - Saving settings to SharedPreferences when updated
+/// - Providing methods to update individual settings
+/// - Handling loading and error states
+/// 
+/// The StateNotifier pattern allows reactive state management where widgets automatically
+/// rebuild when the state changes. This is part of the Application layer in clean architecture.
+/// 
+/// Settings are persisted using SharedPreferences, which provides simple key-value storage
+/// that persists across app restarts.
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier() : super(SettingsState.initial()) {
     _loadSettings();

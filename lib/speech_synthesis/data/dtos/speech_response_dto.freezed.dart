@@ -21,10 +21,40 @@ SpeechResponseDto _$SpeechResponseDtoFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$SpeechResponseDto {
-  String get audioData =>
-      throw _privateConstructorUsedError; // Base64 encoded audio
+  /// Audio data as a String
+  ///
+  /// **Content can be:**
+  /// - Base64-encoded audio data (when received from API/script)
+  /// - File path (after audio is saved to disk by the repository)
+  ///
+  /// The repository saves base64 audio to a file and replaces this field with the file path
+  /// for better performance (avoiding base64 encoding/decoding overhead).
+  String get audioData => throw _privateConstructorUsedError;
+
+  /// Audio format as a plain String (e.g., 'mp3', 'wav', 'ogg')
+  ///
+  /// Unlike the domain model which uses AudioFormatVO (a value object), this is a simple
+  /// String for easy serialization. The extension method `toDomain()` converts this to
+  /// AudioFormatVO when creating the domain model.
   String get audioFormat => throw _privateConstructorUsedError;
+
+  /// Duration of the audio in milliseconds
+  ///
+  /// This represents how long the generated speech audio is. It's useful for:
+  /// - Displaying progress during playback
+  /// - Calculating playback position
+  /// - UI feedback (showing audio length)
   int get durationMs => throw _privateConstructorUsedError;
+
+  /// Optional metadata as a JSON string
+  ///
+  /// This can contain additional information about the synthesis:
+  /// - Service-specific metadata (voice used, model version, etc.)
+  /// - Quality metrics
+  /// - Processing time
+  /// - Any other service-provided information
+  ///
+  /// Stored as a JSON string to maintain flexibility across different services.
   String? get metadata => throw _privateConstructorUsedError;
 
   /// Serializes this SpeechResponseDto to a JSON map.
@@ -168,13 +198,43 @@ class _$SpeechResponseDtoImpl implements _SpeechResponseDto {
   factory _$SpeechResponseDtoImpl.fromJson(Map<String, dynamic> json) =>
       _$$SpeechResponseDtoImplFromJson(json);
 
+  /// Audio data as a String
+  ///
+  /// **Content can be:**
+  /// - Base64-encoded audio data (when received from API/script)
+  /// - File path (after audio is saved to disk by the repository)
+  ///
+  /// The repository saves base64 audio to a file and replaces this field with the file path
+  /// for better performance (avoiding base64 encoding/decoding overhead).
   @override
   final String audioData;
-  // Base64 encoded audio
+
+  /// Audio format as a plain String (e.g., 'mp3', 'wav', 'ogg')
+  ///
+  /// Unlike the domain model which uses AudioFormatVO (a value object), this is a simple
+  /// String for easy serialization. The extension method `toDomain()` converts this to
+  /// AudioFormatVO when creating the domain model.
   @override
   final String audioFormat;
+
+  /// Duration of the audio in milliseconds
+  ///
+  /// This represents how long the generated speech audio is. It's useful for:
+  /// - Displaying progress during playback
+  /// - Calculating playback position
+  /// - UI feedback (showing audio length)
   @override
   final int durationMs;
+
+  /// Optional metadata as a JSON string
+  ///
+  /// This can contain additional information about the synthesis:
+  /// - Service-specific metadata (voice used, model version, etc.)
+  /// - Quality metrics
+  /// - Processing time
+  /// - Any other service-provided information
+  ///
+  /// Stored as a JSON string to maintain flexibility across different services.
   @override
   final String? metadata;
 
@@ -231,12 +291,43 @@ abstract class _SpeechResponseDto implements SpeechResponseDto {
   factory _SpeechResponseDto.fromJson(Map<String, dynamic> json) =
       _$SpeechResponseDtoImpl.fromJson;
 
+  /// Audio data as a String
+  ///
+  /// **Content can be:**
+  /// - Base64-encoded audio data (when received from API/script)
+  /// - File path (after audio is saved to disk by the repository)
+  ///
+  /// The repository saves base64 audio to a file and replaces this field with the file path
+  /// for better performance (avoiding base64 encoding/decoding overhead).
   @override
-  String get audioData; // Base64 encoded audio
+  String get audioData;
+
+  /// Audio format as a plain String (e.g., 'mp3', 'wav', 'ogg')
+  ///
+  /// Unlike the domain model which uses AudioFormatVO (a value object), this is a simple
+  /// String for easy serialization. The extension method `toDomain()` converts this to
+  /// AudioFormatVO when creating the domain model.
   @override
   String get audioFormat;
+
+  /// Duration of the audio in milliseconds
+  ///
+  /// This represents how long the generated speech audio is. It's useful for:
+  /// - Displaying progress during playback
+  /// - Calculating playback position
+  /// - UI feedback (showing audio length)
   @override
   int get durationMs;
+
+  /// Optional metadata as a JSON string
+  ///
+  /// This can contain additional information about the synthesis:
+  /// - Service-specific metadata (voice used, model version, etc.)
+  /// - Quality metrics
+  /// - Processing time
+  /// - Any other service-provided information
+  ///
+  /// Stored as a JSON string to maintain flexibility across different services.
   @override
   String? get metadata;
 

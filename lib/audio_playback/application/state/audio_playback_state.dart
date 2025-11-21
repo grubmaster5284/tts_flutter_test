@@ -2,7 +2,15 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'audio_playback_state.freezed.dart';
 
-/// Represents the playback status of audio
+/// Enum representing the current playback status of audio
+/// 
+/// This enum defines all possible states that audio playback can be in:
+/// - idle: Initial state, no audio loaded
+/// - loading: Audio source is being loaded
+/// - playing: Audio is currently playing
+/// - paused: Audio playback is paused
+/// - stopped: Audio playback is stopped
+/// - error: An error occurred during playback
 enum PlaybackStatus {
   idle,
   loading,
@@ -13,6 +21,13 @@ enum PlaybackStatus {
 }
 
 /// Immutable state class for audio playback
+/// 
+/// This class represents the complete state of the audio playback system at any given time.
+/// It uses Freezed to generate immutable classes with copyWith methods, ensuring type safety
+/// and preventing accidental state mutations.
+/// 
+/// This is part of the Application layer in clean architecture and serves as the single
+/// source of truth for audio playback state throughout the app.
 @freezed
 class AudioPlaybackState with _$AudioPlaybackState {
   const AudioPlaybackState._(); // Private constructor for extensions

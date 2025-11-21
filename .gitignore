@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Service account keys and credentials
+**/service-account-key.json
+**/.gcloud/service-account-key.json
+service-account-key.json
+.env
+*.key.json

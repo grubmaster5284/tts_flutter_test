@@ -21,12 +21,25 @@ SpeechRequestDto _$SpeechRequestDtoFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$SpeechRequestDto {
+  /// The text content to be converted to speech
+  /// This is a plain String, unlike the domain model which uses TextVO (a value object)
   String get text => throw _privateConstructorUsedError;
-  String get service =>
-      throw _privateConstructorUsedError; // 'gemini', 'openai', or 'polly'
+
+  /// The TTS service to use: 'gemini', 'openai', or 'polly'
+  /// This is a String identifier, unlike the domain model which uses TTSServiceModel
+  String get service => throw _privateConstructorUsedError;
+
+  /// Optional voice identifier for the TTS service
+  /// Different services support different voices (e.g., 'en-US-Standard-A' for Google)
   String? get voice => throw _privateConstructorUsedError;
-  String? get language =>
-      throw _privateConstructorUsedError; // ISO 639-1 format
+
+  /// Optional language code in ISO 639-1 format (e.g., 'en', 'es', 'fr')
+  /// This determines the language/accent of the generated speech
+  String? get language => throw _privateConstructorUsedError;
+
+  /// Audio format for the output (default: 'mp3')
+  /// Supported formats: 'mp3', 'wav', 'ogg', etc.
+  /// Uses @Default annotation from Freezed to provide a default value
   String get audioFormat => throw _privateConstructorUsedError;
 
   /// Serializes this SpeechRequestDto to a JSON map.
@@ -183,16 +196,29 @@ class _$SpeechRequestDtoImpl implements _SpeechRequestDto {
   factory _$SpeechRequestDtoImpl.fromJson(Map<String, dynamic> json) =>
       _$$SpeechRequestDtoImplFromJson(json);
 
+  /// The text content to be converted to speech
+  /// This is a plain String, unlike the domain model which uses TextVO (a value object)
   @override
   final String text;
+
+  /// The TTS service to use: 'gemini', 'openai', or 'polly'
+  /// This is a String identifier, unlike the domain model which uses TTSServiceModel
   @override
   final String service;
-  // 'gemini', 'openai', or 'polly'
+
+  /// Optional voice identifier for the TTS service
+  /// Different services support different voices (e.g., 'en-US-Standard-A' for Google)
   @override
   final String? voice;
+
+  /// Optional language code in ISO 639-1 format (e.g., 'en', 'es', 'fr')
+  /// This determines the language/accent of the generated speech
   @override
   final String? language;
-  // ISO 639-1 format
+
+  /// Audio format for the output (default: 'mp3')
+  /// Supported formats: 'mp3', 'wav', 'ogg', etc.
+  /// Uses @Default annotation from Freezed to provide a default value
   @override
   @JsonKey()
   final String audioFormat;
@@ -250,14 +276,29 @@ abstract class _SpeechRequestDto implements SpeechRequestDto {
   factory _SpeechRequestDto.fromJson(Map<String, dynamic> json) =
       _$SpeechRequestDtoImpl.fromJson;
 
+  /// The text content to be converted to speech
+  /// This is a plain String, unlike the domain model which uses TextVO (a value object)
   @override
   String get text;
+
+  /// The TTS service to use: 'gemini', 'openai', or 'polly'
+  /// This is a String identifier, unlike the domain model which uses TTSServiceModel
   @override
-  String get service; // 'gemini', 'openai', or 'polly'
+  String get service;
+
+  /// Optional voice identifier for the TTS service
+  /// Different services support different voices (e.g., 'en-US-Standard-A' for Google)
   @override
   String? get voice;
+
+  /// Optional language code in ISO 639-1 format (e.g., 'en', 'es', 'fr')
+  /// This determines the language/accent of the generated speech
   @override
-  String? get language; // ISO 639-1 format
+  String? get language;
+
+  /// Audio format for the output (default: 'mp3')
+  /// Supported formats: 'mp3', 'wav', 'ogg', etc.
+  /// Uses @Default annotation from Freezed to provide a default value
   @override
   String get audioFormat;
 

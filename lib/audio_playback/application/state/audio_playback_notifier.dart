@@ -4,7 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tts_flutter_test/audio_playback/application/state/audio_playback_state.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
 
-/// StateNotifier for managing audio playback state
+/// [StateNotifier] for managing audio playback state and operations
+/// 
+/// This class extends `StateNotifier<AudioPlaybackState>` and serves as the business logic layer
+/// for audio playback. It manages:
+/// - Audio player lifecycle (initialization, disposal)
+/// - Playback operations (play, pause, stop, seek)
+/// - Audio source loading (URLs and local files)
+/// - Volume and playback speed controls
+/// - State synchronization with the underlying AudioPlayer
+/// 
+/// The StateNotifier pattern allows reactive state management where widgets automatically
+/// rebuild when the state changes. This is part of the Application layer in clean architecture.
 class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   AudioPlaybackNotifier() : super(AudioPlaybackState.initial()) {
     _initAudioPlayer();

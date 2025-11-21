@@ -48,9 +48,12 @@ class MainFlutterWindow: NSWindow {
     )
     
     ttsChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      print("TTS Channel: Received method call: \(call.method)")
       if call.method == "synthesizeSpeech" {
+        print("TTS Channel: Executing synthesizeSpeech")
         appDelegate.executeTTSScript(call: call, result: result)
       } else {
+        print("TTS Channel: Unknown method: \(call.method)")
         result(FlutterMethodNotImplemented)
       }
     }
@@ -59,5 +62,6 @@ class MainFlutterWindow: NSWindow {
     appDelegate.setChannels(volumeKey: volumeKeyChannel, tts: ttsChannel)
     
     print("Method channels set up successfully")
+    print("TTS Channel name: com.tts_flutter_test/tts_script")
   }
 }

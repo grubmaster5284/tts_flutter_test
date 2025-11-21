@@ -3,6 +3,20 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'settings_state.freezed.dart';
 
 /// Immutable state class for app settings
+/// 
+/// This class represents the complete state of app settings at any given time.
+/// It uses Freezed to generate immutable classes with copyWith methods, ensuring type safety
+/// and preventing accidental state mutations.
+/// 
+/// The state includes:
+/// - Default TTS service, voice, language, and audio format preferences
+/// - Default volume and playback speed for audio playback
+/// - Theme preference (light, dark, or system)
+/// - Loading and saving states
+/// - Error messages if operations fail
+/// 
+/// This is part of the Application layer in clean architecture and serves as the single
+/// source of truth for settings state throughout the app.
 @freezed
 class SettingsState with _$SettingsState {
   const SettingsState._(); // Private constructor for extensions

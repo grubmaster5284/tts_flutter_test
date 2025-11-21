@@ -10,6 +10,11 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 import 'package:tts_flutter_test/core/utils/media_key_handler.dart';
 import 'package:tts_flutter_test/speech_synthesis/presentation/pages/speech_synthesis_page.dart';
 
+/// Main entry point of the application
+/// 
+/// This function initializes the Flutter app with a ProviderScope, which is required
+/// for Riverpod state management. ProviderScope provides the dependency injection
+/// container that manages all providers throughout the app lifecycle.
 void main() {
   AppLogger.info('App starting', tag: 'App');
   
@@ -20,6 +25,11 @@ void main() {
   );
 }
 
+/// Root widget of the application
+/// 
+/// This StatelessWidget sets up the MaterialApp with theme configuration.
+/// It defines the app's title, theme, and initial route (AudioPlayerTestPage).
+/// This is the top-level widget that wraps all other widgets in the app.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -36,6 +46,17 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/// Main page widget for audio player testing
+/// 
+/// This is a ConsumerStatefulWidget, which means it can access Riverpod providers
+/// using the `ref` parameter. ConsumerStatefulWidget is part of the Riverpod package
+/// and allows widgets to reactively rebuild when provider state changes.
+/// 
+/// This page demonstrates the audio playback functionality with:
+/// - Audio file loading (from URL or local file system)
+/// - Full audio player controls
+/// - Media key support on desktop platforms
+/// - Navigation to speech synthesis page
 class AudioPlayerTestPage extends ConsumerStatefulWidget {
   const AudioPlayerTestPage({super.key});
 
@@ -43,6 +64,13 @@ class AudioPlayerTestPage extends ConsumerStatefulWidget {
   ConsumerState<AudioPlayerTestPage> createState() => _AudioPlayerTestPageState();
 }
 
+/// State class for AudioPlayerTestPage
+/// 
+/// This state class manages the UI state for the audio player test page, including:
+/// - Text controller for audio URL input
+/// - Current audio source tracking
+/// - Compact mode toggle
+/// - Media key initialization (on desktop platforms)
 class _AudioPlayerTestPageState extends ConsumerState<AudioPlayerTestPage> {
   final TextEditingController _audioUrlController = TextEditingController();
   String? _currentAudioSource;

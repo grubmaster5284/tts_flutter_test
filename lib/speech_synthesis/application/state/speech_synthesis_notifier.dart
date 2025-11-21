@@ -10,7 +10,17 @@ import 'package:tts_flutter_test/core/utils/data_state.dart';
 import 'package:tts_flutter_test/speech_synthesis/application/state/speech_synthesis_state.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
 
-/// StateNotifier for managing speech synthesis state
+/// [StateNotifier] for managing speech synthesis state and operations
+/// 
+/// This class extends `StateNotifier<SpeechSynthesisState>` and serves as the business logic layer
+/// for text-to-speech synthesis. It:
+/// - Coordinates TTS requests by creating domain models (value objects, entities)
+/// - Calls the repository to execute TTS conversion
+/// - Manages state transitions (loading, success, error)
+/// - Handles service selection and configuration
+/// 
+/// The StateNotifier pattern allows reactive state management where widgets automatically
+/// rebuild when the state changes. This is part of the Application layer in clean architecture.
 class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
   final ISpeechSynthesisRepository _repository;
   
