@@ -40,8 +40,8 @@ This document tracks the implementation status of files and features according t
 
 | # | File | Status | Notes |
 |---|------|--------|-------|
-| 21 | `lib/speech_synthesis/data/repositories/speech_synthesis_repository_impl.dart` | ✅ Complete | Repository implementation exists |
-| 22 | `lib/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart` | ✅ Complete | HTTP client service exists |
+| 21 | `lib/speech_synthesis/data/repositories/speech_synthesis_repository_impl.dart` | ✅ Complete | Repository implementation with caching, file saving, and platform detection |
+| 22 | `lib/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart` | ✅ Complete | HTTP client service with retry logic, exponential backoff, and comprehensive error handling |
 | 23 | `lib/speech_synthesis/data/sources/local/speech_synthesis_local_service.dart` | ✅ Complete | Local storage service exists |
 | 24 | `lib/speech_synthesis/data/dtos/speech_request_dto.dart` | ✅ Complete | Request DTO exists |
 | 25 | `lib/speech_synthesis/data/dtos/speech_response_dto.dart` | ✅ Complete | Response DTO exists |
@@ -53,7 +53,7 @@ This document tracks the implementation status of files and features according t
 |---|------|--------|-------|
 | 27 | `lib/speech_synthesis/application/state/speech_synthesis_state.dart` | ✅ Complete | State class with Freezed exists |
 | 28 | `lib/speech_synthesis/application/state/speech_synthesis_notifier.dart` | ✅ Complete | StateNotifier exists |
-| 29 | `lib/speech_synthesis/application/providers/speech_synthesis_providers.dart` | ✅ Complete | Riverpod providers & DI exist |
+| 29 | `lib/speech_synthesis/application/providers/speech_synthesis_providers.dart` | ✅ Complete | Riverpod providers & DI with platform-specific service selection (script service for desktop/mobile, remote service for web) |
 
 ### Presentation Layer
 
@@ -134,13 +134,20 @@ This document tracks the implementation status of files and features according t
 ## Additional Files (Beyond Plan)
 
 These files exist but were not in the original plan:
-- `lib/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart`
-- `lib/core/utils/data_state.dart`
-- `lib/core/utils/media_key_handler.dart`
-- `lib/audio_playback/presentation/widgets/audio_controls.dart`
-- `lib/audio_playback/presentation/widgets/audio_progress_bar.dart`
-- `lib/audio_playback/presentation/widgets/audio_speed_control.dart`
-- `lib/audio_playback/presentation/widgets/audio_time_display.dart`
-- `lib/audio_playback/presentation/widgets/audio_volume_control.dart`
-- `lib/audio_playback/presentation/presentation.dart`
+- `lib/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart` - Platform channel service for executing Python TTS scripts (desktop/mobile)
+- `lib/core/utils/data_state.dart` - Data state utility for managing async states
+- `lib/core/utils/media_key_handler.dart` - Media key handling utility
+- `lib/audio_playback/presentation/widgets/audio_controls.dart` - Audio playback controls widget
+- `lib/audio_playback/presentation/widgets/audio_progress_bar.dart` - Audio progress bar widget
+- `lib/audio_playback/presentation/widgets/audio_speed_control.dart` - Audio playback speed control widget
+- `lib/audio_playback/presentation/widgets/audio_time_display.dart` - Audio time display widget
+- `lib/audio_playback/presentation/widgets/audio_volume_control.dart` - Audio volume control widget
+- `lib/audio_playback/presentation/presentation.dart` - Presentation layer barrel export
+
+## Recent Enhancements
+
+The following files have been enhanced with additional features:
+- **speech_synthesis_repository_impl.dart**: Added file-based audio storage, platform detection (web vs desktop/mobile), and improved caching strategy
+- **speech_synthesis_remote_service.dart**: Added retry logic with exponential backoff, comprehensive error handling, and timeout management
+- **speech_synthesis_providers.dart**: Enhanced with platform-specific service selection and comprehensive dependency injection setup
 

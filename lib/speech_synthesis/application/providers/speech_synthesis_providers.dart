@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tts_flutter_test/speech_synthesis/application/state/speech_synthesis_notifier.dart';
 import 'package:tts_flutter_test/speech_synthesis/application/state/speech_synthesis_state.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/repositories/speech_synthesis_repository_impl.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_local_service.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart';
+import 'package:tts_flutter_test/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/repositories/i_speech_synthesis_repository.dart';
 
 /// [FutureProvider] for SharedPreferences
@@ -21,8 +23,21 @@ final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async 
 /// This provider creates the script service that handles communication with Python scripts
 /// via platform channels. The script service executes Python TTS scripts (Gemini, OpenAI)
 /// and returns the audio data. This is part of the Data layer.
-final speechSynthesisScriptServiceProvider = Provider<SpeechSynthesisScriptService>((ref) {
+/// 
+/// **Platform Support**: Used on desktop and mobile platforms (not web)
+final speechSynthesisScriptServiceProvider = Provider<SpeechSynthesisScriptService?>((ref) {
   return SpeechSynthesisScriptService();
+});
+
+/// [Provider] for SpeechSynthesisRemoteService
+/// 
+/// This provider creates the remote service that handles HTTP requests to the backend API.
+/// The remote service makes POST requests to a Python FastAPI backend that performs TTS synthesis.
+/// This is part of the Data layer.
+/// 
+/// **Platform Support**: Used on web platform
+final speechSynthesisRemoteServiceProvider = Provider<SpeechSynthesisRemoteService?>((ref) {
+  return SpeechSynthesisRemoteService(http.Client());
 });
 
 /// [Provider] for SpeechSynthesisLocalService
@@ -41,13 +56,17 @@ final speechSynthesisLocalServiceProvider = Provider<SpeechSynthesisLocalService
 /// [Provider] for ISpeechSynthesisRepository
 /// 
 /// This provider creates the repository implementation that coordinates between the
-/// script service (for API calls) and local service (for caching). The repository
-/// implements the domain interface, following the Repository pattern from clean architecture.
-/// This bridges the Domain and Data layers.
+/// script service (for API calls on desktop/mobile), remote service (for API calls on web),
+/// and local service (for caching). The repository implements the domain interface,
+/// following the Repository pattern from clean architecture. This bridges the Domain and Data layers.
+/// 
+/// **Platform Detection**: The repository automatically selects the appropriate service
+/// based on the platform (web uses remote service, others use script service).
 final speechSynthesisRepositoryProvider = Provider<ISpeechSynthesisRepository>((ref) {
   final scriptService = ref.watch(speechSynthesisScriptServiceProvider);
+  final remoteService = ref.watch(speechSynthesisRemoteServiceProvider);
   final localService = ref.watch(speechSynthesisLocalServiceProvider);
-  return SpeechSynthesisRepositoryImpl(scriptService, localService);
+  return SpeechSynthesisRepositoryImpl(scriptService, remoteService, localService);
 });
 
 /// [StateNotifierProvider] for SpeechSynthesisNotifier

@@ -31,28 +31,46 @@
     });
   }
 
-  // Register method channel handler
+  // Register method channel handler using Flutter web's proper API
   function registerMethodChannel() {
     if (isRegistered) {
       return;
     }
 
     try {
-      // Method 1: Register via Flutter's plugin system (if available)
-      if (window._flutter && window._flutter.plugins) {
-        if (window._flutter.plugins.registerMethodCallHandler) {
-          window._flutter.plugins.registerMethodCallHandler(channelName, handleMethodCall);
-          isRegistered = true;
-          console.log('TTS Channel registered via plugin system');
-          return;
-        }
-      }
-
-      // Method 2: Intercept platform messages at the loader level
+      // Wait for Flutter web engine to be available
+      // The engine is available via window._flutter.loader.engine after initialization
       if (window._flutter && window._flutter.loader) {
         const loader = window._flutter.loader;
         
-        // Store original sendPlatformMessage if it exists
+        // Method 1: Register via engine's method channel API (preferred)
+        if (loader.engine && loader.engine.registerMethodCallHandler) {
+          loader.engine.registerMethodCallHandler(channelName, handleMethodCall);
+          isRegistered = true;
+          console.log('TTS Channel registered via engine API');
+          return;
+        }
+        
+        // Method 2: Register when engine becomes available via promise
+        if (loader.loadEntrypoint && typeof loader.loadEntrypoint === 'function') {
+          // Engine might not be ready yet, wait for it
+          const checkEngine = function() {
+            if (loader.engine && loader.engine.registerMethodCallHandler) {
+              loader.engine.registerMethodCallHandler(channelName, handleMethodCall);
+              isRegistered = true;
+              console.log('TTS Channel registered via engine API (delayed)');
+              return true;
+            }
+            return false;
+          };
+          
+          if (checkEngine()) {
+            return;
+          }
+        }
+        
+        // Method 3: Intercept platform messages at the loader level (fallback)
+        // This is a workaround if the engine API is not available
         if (loader.sendPlatformMessage && !loader._originalSendPlatformMessage) {
           loader._originalSendPlatformMessage = loader.sendPlatformMessage;
           
@@ -71,18 +89,18 @@
           };
           
           isRegistered = true;
-          console.log('TTS Channel registered via message interception');
+          console.log('TTS Channel registered via message interception (fallback)');
           return;
         }
       }
 
-      // Method 3: Register when engine is available
-      if (window._flutter && window._flutter.loader && window._flutter.loader.engine) {
-        const engine = window._flutter.loader.engine;
-        if (engine.registerMethodCallHandler) {
-          engine.registerMethodCallHandler(channelName, handleMethodCall);
+      // Method 4: Try to register via ui_web if available
+      if (window._flutter && window._flutter.ui_web) {
+        const uiWeb = window._flutter.ui_web;
+        if (uiWeb.platformViewRegistry && uiWeb.platformViewRegistry.registerMethodCallHandler) {
+          uiWeb.platformViewRegistry.registerMethodCallHandler(channelName, handleMethodCall);
           isRegistered = true;
-          console.log('TTS Channel registered via engine');
+          console.log('TTS Channel registered via ui_web');
           return;
         }
       }
@@ -125,15 +143,21 @@
     registerMethodChannel();
   });
 
+  // Listen for engine ready event
+  window.addEventListener('flutter-engine-ready', function() {
+    registerMethodChannel();
+  });
+
   // Fallback: try periodically for a few seconds
   let attempts = 0;
-  const maxAttempts = 20;
+  const maxAttempts = 30; // Increased attempts
   const intervalId = setInterval(function() {
     attempts++;
     if (isRegistered || attempts >= maxAttempts) {
       clearInterval(intervalId);
       if (!isRegistered) {
-        console.warn('TTS Channel: Failed to register after multiple attempts');
+        // This is not necessarily an error - the channel might not be needed if using remote API
+        console.info('TTS Channel: Not registered (this is OK if using remote API service)');
       }
     } else {
       registerMethodChannel();

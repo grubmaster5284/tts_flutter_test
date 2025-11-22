@@ -1,11 +1,17 @@
 """Simple TTS backend - calls Gemini or OpenAI TTS APIs."""
+import sys
+import os
+
+# Add current directory to Python path to allow imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from .config import HOST, PORT, DEBUG
-from .services import synthesize_gemini, synthesize_openai
+from config import HOST, PORT, DEBUG
+from services import synthesize_gemini, synthesize_openai
 
 app = FastAPI(title="TTS Backend", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

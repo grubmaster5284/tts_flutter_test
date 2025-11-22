@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:result_type/result_type.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_request_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_response_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_local_service.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart';
+import 'package:tts_flutter_test/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/speech_request_model.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/speech_response_model.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/tts_service_model.dart';
@@ -30,7 +32,8 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 /// - **Implementation** (SpeechSynthesisRepositoryImpl): Defined in Data layer - implements the contract
 /// 
 /// ## This Repository Coordinates:
-/// - **SpeechSynthesisScriptService**: Executes Python scripts via platform channels to call TTS APIs
+/// - **SpeechSynthesisScriptService**: Executes Python scripts via platform channels to call TTS APIs (desktop/mobile)
+/// - **SpeechSynthesisRemoteService**: Makes HTTP requests to backend API for TTS synthesis (web)
 /// - **SpeechSynthesisLocalService**: Handles local caching in SharedPreferences to avoid redundant API calls
 /// 
 /// ## Responsibilities:
@@ -62,7 +65,18 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
   /// This service handles communication with native platform code (Android/iOS/macOS)
   /// to execute Python scripts that perform text-to-speech synthesis using various
   /// TTS providers (Google Gemini, OpenAI, AWS Polly).
-  final SpeechSynthesisScriptService _scriptService;
+  /// 
+  /// **Platform Support**: Used on desktop and mobile platforms (not web)
+  final SpeechSynthesisScriptService? _scriptService;
+  
+  /// Service for making HTTP requests to backend API
+  /// 
+  /// This service handles communication with a Python backend server over HTTP
+  /// to perform text-to-speech synthesis. It's used on web platform where
+  /// platform channels are not available.
+  /// 
+  /// **Platform Support**: Used on web platform
+  final SpeechSynthesisRemoteService? _remoteService;
   
   /// Service for local caching of TTS responses
   /// 
@@ -76,11 +90,16 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
   /// **Dependency Injection**: Services are injected via constructor, making the
   /// repository testable (can inject mock services) and following SOLID principles.
   /// 
+  /// **Platform Detection**: The repository automatically selects the appropriate
+  /// service based on the platform (web uses remote service, others use script service).
+  /// 
   /// **Parameters:**
-  /// - `_scriptService`: Handles Python script execution via platform channels
+  /// - `_scriptService`: Handles Python script execution via platform channels (desktop/mobile)
+  /// - `_remoteService`: Handles HTTP requests to backend API (web)
   /// - `_localService`: Handles local caching in SharedPreferences
   SpeechSynthesisRepositoryImpl(
     this._scriptService,
+    this._remoteService,
     this._localService,
   );
   
@@ -139,10 +158,14 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
     // DTOs use primitive types (String, int) instead of value objects for serialization
     final requestDto = SpeechRequestDto.fromDomain(request);
     
-    // Step 4: Execute Python script via platform channel
-    // The script service handles communication with native code to run Python scripts
-    // that call TTS APIs (Google Gemini, OpenAI, AWS Polly)
-    final result = await _scriptService.synthesizeSpeech(requestDto);
+    // Step 4: Execute TTS synthesis using platform-appropriate service
+    // - Web: Uses remote service (HTTP requests to backend API)
+    // - Desktop/Mobile: Uses script service (platform channels to Python scripts)
+    final result = kIsWeb
+        ? await _remoteService?.synthesizeSpeech(requestDto) ??
+            Failure(SpeechSynthesisError.unknown('Remote service not available'))
+        : await _scriptService?.synthesizeSpeech(requestDto) ??
+            Failure(SpeechSynthesisError.unknown('Script service not available'));
     
     // Step 5: Process successful response
     if (result.isSuccess) {
@@ -221,6 +244,12 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
       AppLogger.debug('Saving audio to file', tag: 'TTSRepository', data: {
         'format': dto.audioFormat,
       });
+      
+      // On web, we can't use path_provider, so skip file saving
+      if (kIsWeb) {
+        AppLogger.debug('Skipping file save on web platform', tag: 'TTSRepository');
+        return null;
+      }
       
       // Get app documents directory using path_provider
       // This returns a platform-specific directory where the app can store files

@@ -208,12 +208,25 @@ class SpeechSynthesisRemoteService {
       // ClientException is thrown by the http package for network-related errors
       AppLogger.error('Network error during TTS request', tag: 'TTSRemoteService', error: e);
       
+      final errorString = e.toString().toLowerCase();
+      
       // Check if it's a connection refused error (backend not running)
       // This is a common issue during development
-      if (e.toString().contains('Connection refused') || 
-          e.toString().contains('errno = 61')) {
+      if (errorString.contains('connection refused') || 
+          errorString.contains('errno = 61')) {
         return Failure(SpeechSynthesisError.unknown(
-          'Backend server is not running.\n\nPlease start the Python backend server:\n1. Open terminal\n2. cd backend/python\n3. ./run.sh\n\nOr see BACKEND_START_GUIDE.md for details.'
+          'Backend server is not running.\n\nPlease start the Python backend server:\n1. Open terminal\n2. cd backend/python\n3. python main.py\n\nOr see backend/README.md for details.'
+        ));
+      }
+      
+      // Check for "Failed to fetch" - common on web when backend is unreachable or CORS issue
+      if (errorString.contains('failed to fetch')) {
+        return Failure(SpeechSynthesisError.unknown(
+          'Cannot connect to backend server.\n\nPossible causes:\n'
+          '1. Backend server is not running (start it with: cd backend/python && python main.py)\n'
+          '2. Backend is running on a different port\n'
+          '3. CORS configuration issue\n\n'
+          'Make sure the backend is running on http://localhost:8000'
         ));
       }
       
@@ -337,6 +350,37 @@ class SpeechSynthesisRemoteService {
         return const SpeechSynthesisError.unauthorized();
       case 403:
         // Forbidden - authenticated but no permission
+        // Try to extract helpful error message from Google Cloud API errors
+        try {
+          final jsonData = jsonDecode(body) as Map<String, dynamic>?;
+          final detail = jsonData?['detail'] as String?;
+          if (detail != null && detail.contains('texttospeech')) {
+            // Google Cloud TTS API error
+            if (detail.contains('Application Default Credentials')) {
+              return SpeechSynthesisError.serviceError(
+                'Google Cloud authentication issue. Please ensure:\n'
+                '1. Text-to-Speech API is enabled in your Google Cloud project\n'
+                '2. Your credentials have the "Cloud Text-to-Speech API User" role\n'
+                '3. Use a service account key file: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json'
+              );
+            } else if (detail.contains('billing') || detail.contains('BILLING')) {
+              return SpeechSynthesisError.serviceError(
+                'Billing is not enabled for your Google Cloud project. Please enable billing in the Google Cloud Console.'
+              );
+            } else if (detail.contains('PERMISSION_DENIED')) {
+              return SpeechSynthesisError.serviceError(
+                'Permission denied. Your credentials do not have access to the Text-to-Speech API. '
+                'Please ensure your service account has the "Cloud Text-to-Speech API User" role.'
+              );
+            }
+            // Return the detail message if it's informative
+            return SpeechSynthesisError.serviceError(
+              detail.length > 300 ? '${detail.substring(0, 300)}...' : detail
+            );
+          }
+        } catch (e) {
+          // If parsing fails, fall through to default
+        }
         return const SpeechSynthesisError.forbidden();
       case 429:
         // Too Many Requests - rate limit exceeded

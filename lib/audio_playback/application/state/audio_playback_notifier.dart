@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tts_flutter_test/audio_playback/application/state/audio_playback_state.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
+import 'package:tts_flutter_test/core/utils/web_audio_helper.dart';
 
 /// [StateNotifier] for managing audio playback state and operations
 /// 
@@ -26,6 +28,9 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
+  
+  // Track blob URLs created for web platform to revoke them when done
+  String? _currentBlobUrl;
 
   void _initAudioPlayer() {
     AppLogger.debug('Initializing audio player', tag: 'AudioPlayer');
@@ -84,6 +89,13 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playerStateSubscription?.cancel();
+    
+    // Revoke blob URL if one was created
+    if (_currentBlobUrl != null) {
+      WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
+      _currentBlobUrl = null;
+    }
+    
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -105,16 +117,54 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
       AppLogger.debug('Stopping current playback', tag: 'AudioPlayer');
       await _audioPlayer.stop();
       
+      // Revoke previous blob URL if it exists
+      if (_currentBlobUrl != null) {
+        WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
+        _currentBlobUrl = null;
+      }
+      
       // Determine if it's a URL or local file path
       final bool isUrl = audioSource.startsWith('http://') || 
                         audioSource.startsWith('https://') ||
-                        audioSource.startsWith('file://');
+                        audioSource.startsWith('file://') ||
+                        audioSource.startsWith('blob:');
       
-      AppLogger.debug('Audio source type determined', tag: 'AudioPlayer', data: {'isUrl': isUrl});
+      // Check if it's base64 data (long string that doesn't look like a URL or file path)
+      final bool isBase64 = !isUrl && 
+                            audioSource.length > 100 && 
+                            _isBase64String(audioSource);
+      
+      AppLogger.debug('Audio source type determined', tag: 'AudioPlayer', data: {
+        'isUrl': isUrl,
+        'isBase64': isBase64,
+        'sourceLength': audioSource.length,
+      });
       
       // Create the appropriate source type
       final Source source;
-      if (isUrl) {
+      String? actualSource = audioSource;
+      
+      if (isBase64 && kIsWeb) {
+        // On web, convert base64 to blob URL
+        // Try to detect audio format from the source or default to mp3
+        final audioFormat = _detectAudioFormat(audioSource) ?? 'mp3';
+        final blobUrl = WebAudioHelper.base64ToBlobUrl(audioSource, audioFormat);
+        
+        if (blobUrl != null) {
+          _currentBlobUrl = blobUrl;
+          actualSource = blobUrl;
+          source = UrlSource(blobUrl);
+          AppLogger.debug('Created UrlSource from base64 blob URL', tag: 'AudioPlayer', data: {
+            'format': audioFormat,
+          });
+        } else {
+          // Fallback: try as data URL
+          final mimeType = _getMimeTypeFromFormat(audioFormat);
+          actualSource = 'data:$mimeType;base64,$audioSource';
+          source = UrlSource(actualSource);
+          AppLogger.debug('Created UrlSource from base64 data URL (fallback)', tag: 'AudioPlayer');
+        }
+      } else if (isUrl) {
         source = UrlSource(audioSource);
         AppLogger.debug('Created UrlSource', tag: 'AudioPlayer');
       } else {
@@ -160,7 +210,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
       
       state = state.copyWith(
         status: PlaybackStatus.stopped,
-        audioSource: audioSource,
+        audioSource: actualSource, // Use the actual source (blob URL if converted)
       );
       
       AppLogger.info('Audio loaded successfully', tag: 'AudioPlayer', data: {
@@ -391,7 +441,60 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
 
   /// Reset state to initial
   void reset() {
+    // Revoke blob URL if one was created
+    if (_currentBlobUrl != null) {
+      WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
+      _currentBlobUrl = null;
+    }
     state = AudioPlaybackState.initial();
+  }
+
+  /// Checks if a string is likely base64-encoded data
+  /// Base64 strings are typically long and contain only base64 characters
+  bool _isBase64String(String str) {
+    if (str.length < 100) return false;
+    
+    // Base64 characters: A-Z, a-z, 0-9, +, /, = (for padding)
+    final base64Pattern = RegExp(r'^[A-Za-z0-9+/=]+$');
+    return base64Pattern.hasMatch(str);
+  }
+
+  /// Attempts to detect audio format from base64 data or source
+  /// Returns null if format cannot be determined
+  String? _detectAudioFormat(String source) {
+    // Check if source contains format hints
+    if (source.contains('audio/mpeg') || source.contains('.mp3')) {
+      return 'mp3';
+    }
+    if (source.contains('audio/wav') || source.contains('.wav')) {
+      return 'wav';
+    }
+    if (source.contains('audio/ogg') || source.contains('.ogg')) {
+      return 'ogg';
+    }
+    
+    // Default to mp3 if we can't determine
+    return 'mp3';
+  }
+
+  /// Gets MIME type from audio format
+  String _getMimeTypeFromFormat(String format) {
+    switch (format.toLowerCase()) {
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'm4a':
+        return 'audio/mp4';
+      case 'aac':
+        return 'audio/aac';
+      case 'flac':
+        return 'audio/flac';
+      default:
+        return 'audio/mpeg';
+    }
   }
 }
 

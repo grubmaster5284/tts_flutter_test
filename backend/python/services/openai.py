@@ -4,7 +4,7 @@ import json
 from typing import Optional, Literal, cast
 from fastapi import HTTPException
 from openai import OpenAI
-from ..config import OPENAI_API_KEY
+from config import OPENAI_API_KEY
 
 # Type aliases for OpenAI API
 OpenAIVoice = Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
