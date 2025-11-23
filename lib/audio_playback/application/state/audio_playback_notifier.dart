@@ -7,7 +7,7 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 import 'package:tts_flutter_test/core/utils/web_audio_helper.dart';
 
 /// [StateNotifier] for managing audio playback state and operations
-/// 
+///
 /// This class extends `StateNotifier<AudioPlaybackState>` and serves as the business logic layer
 /// for audio playback. It manages:
 /// - Audio player lifecycle (initialization, disposal)
@@ -15,7 +15,7 @@ import 'package:tts_flutter_test/core/utils/web_audio_helper.dart';
 /// - Audio source loading (URLs and local files)
 /// - Volume and playback speed controls
 /// - State synchronization with the underlying AudioPlayer
-/// 
+///
 /// The StateNotifier pattern allows reactive state management where widgets automatically
 /// rebuild when the state changes. This is part of the Application layer in clean architecture.
 class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
@@ -28,13 +28,16 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
-  
+
   // Track blob URLs created for web platform to revoke them when done
   String? _currentBlobUrl;
 
+  // Track the original requested source to prevent reload loops
+  String? _originalRequestedSource;
+
   void _initAudioPlayer() {
     AppLogger.debug('Initializing audio player', tag: 'AudioPlayer');
-    
+
     // Listen to position updates
     _positionSubscription = _audioPlayer.onPositionChanged.listen((position) {
       updatePosition(position.inMilliseconds);
@@ -42,14 +45,24 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
 
     // Listen to duration updates
     _durationSubscription = _audioPlayer.onDurationChanged.listen((duration) {
-      AppLogger.verbose('Duration updated', tag: 'AudioPlayer', data: {'duration': duration.inMilliseconds});
+      AppLogger.verbose(
+        'Duration updated',
+        tag: 'AudioPlayer',
+        data: {'duration': duration.inMilliseconds},
+      );
       updateDuration(duration.inMilliseconds);
     });
 
     // Listen to player state changes
-    _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((playerState) {
-      AppLogger.debug('Player state changed', tag: 'AudioPlayer', data: {'state': playerState.toString()});
-      
+    _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((
+      playerState,
+    ) {
+      AppLogger.debug(
+        'Player state changed',
+        tag: 'AudioPlayer',
+        data: {'state': playerState.toString()},
+      );
+
       switch (playerState) {
         case PlayerState.playing:
           state = state.copyWith(status: PlaybackStatus.playing);
@@ -76,11 +89,12 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     // Set initial volume and playback speed
     _audioPlayer.setVolume(state.volume);
     _audioPlayer.setPlaybackRate(state.playbackSpeed);
-    
-    AppLogger.debug('Audio player initialized', tag: 'AudioPlayer', data: {
-      'volume': state.volume,
-      'speed': state.playbackSpeed,
-    });
+
+    AppLogger.debug(
+      'Audio player initialized',
+      tag: 'AudioPlayer',
+      data: {'volume': state.volume, 'speed': state.playbackSpeed},
+    );
   }
 
   @override
@@ -89,21 +103,41 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playerStateSubscription?.cancel();
-    
+
     // Revoke blob URL if one was created
     if (_currentBlobUrl != null) {
       WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
       _currentBlobUrl = null;
     }
-    
+
     _audioPlayer.dispose();
     super.dispose();
   }
 
   /// Load audio from a source (URL or file path)
   Future<void> loadAudio(String audioSource) async {
-    AppLogger.info('Loading audio', tag: 'AudioPlayer', data: {'source': audioSource});
-    
+    // Prevent reloading the same source if already loaded
+    if (_originalRequestedSource == audioSource &&
+        state.audioSource != null &&
+        state.audioSource!.isNotEmpty &&
+        !state.isLoading &&
+        !state.hasError) {
+      AppLogger.debug(
+        'Audio source already loaded, skipping reload',
+        tag: 'AudioPlayer',
+      );
+      return;
+    }
+
+    AppLogger.info(
+      'Loading audio',
+      tag: 'AudioPlayer',
+      data: {'source': audioSource},
+    );
+
+    // Track the original requested source
+    _originalRequestedSource = audioSource;
+
     state = state.copyWith(
       status: PlaybackStatus.loading,
       audioSource: audioSource,
@@ -116,53 +150,65 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
       // Stop current playback if any
       AppLogger.debug('Stopping current playback', tag: 'AudioPlayer');
       await _audioPlayer.stop();
-      
+
       // Revoke previous blob URL if it exists
       if (_currentBlobUrl != null) {
         WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
         _currentBlobUrl = null;
       }
-      
+
       // Determine if it's a URL or local file path
-      final bool isUrl = audioSource.startsWith('http://') || 
-                        audioSource.startsWith('https://') ||
-                        audioSource.startsWith('file://') ||
-                        audioSource.startsWith('blob:');
-      
+      final bool isUrl =
+          audioSource.startsWith('http://') ||
+          audioSource.startsWith('https://') ||
+          audioSource.startsWith('file://') ||
+          audioSource.startsWith('blob:');
+
       // Check if it's base64 data (long string that doesn't look like a URL or file path)
-      final bool isBase64 = !isUrl && 
-                            audioSource.length > 100 && 
-                            _isBase64String(audioSource);
-      
-      AppLogger.debug('Audio source type determined', tag: 'AudioPlayer', data: {
-        'isUrl': isUrl,
-        'isBase64': isBase64,
-        'sourceLength': audioSource.length,
-      });
-      
+      final bool isBase64 =
+          !isUrl && audioSource.length > 100 && _isBase64String(audioSource);
+
+      AppLogger.debug(
+        'Audio source type determined',
+        tag: 'AudioPlayer',
+        data: {
+          'isUrl': isUrl,
+          'isBase64': isBase64,
+          'sourceLength': audioSource.length,
+        },
+      );
+
       // Create the appropriate source type
       final Source source;
       String? actualSource = audioSource;
-      
+
       if (isBase64 && kIsWeb) {
         // On web, convert base64 to blob URL
         // Try to detect audio format from the source or default to mp3
         final audioFormat = _detectAudioFormat(audioSource) ?? 'mp3';
-        final blobUrl = WebAudioHelper.base64ToBlobUrl(audioSource, audioFormat);
-        
+        final blobUrl = WebAudioHelper.base64ToBlobUrl(
+          audioSource,
+          audioFormat,
+        );
+
         if (blobUrl != null) {
           _currentBlobUrl = blobUrl;
           actualSource = blobUrl;
           source = UrlSource(blobUrl);
-          AppLogger.debug('Created UrlSource from base64 blob URL', tag: 'AudioPlayer', data: {
-            'format': audioFormat,
-          });
+          AppLogger.debug(
+            'Created UrlSource from base64 blob URL',
+            tag: 'AudioPlayer',
+            data: {'format': audioFormat},
+          );
         } else {
           // Fallback: try as data URL
           final mimeType = _getMimeTypeFromFormat(audioFormat);
           actualSource = 'data:$mimeType;base64,$audioSource';
           source = UrlSource(actualSource);
-          AppLogger.debug('Created UrlSource from base64 data URL (fallback)', tag: 'AudioPlayer');
+          AppLogger.debug(
+            'Created UrlSource from base64 data URL (fallback)',
+            tag: 'AudioPlayer',
+          );
         }
       } else if (isUrl) {
         source = UrlSource(audioSource);
@@ -172,7 +218,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
         source = DeviceFileSource(audioSource);
         AppLogger.debug('Created DeviceFileSource', tag: 'AudioPlayer');
       }
-      
+
       // Try to set the source
       // On macOS, sometimes we need to use play() then immediately stop
       // to properly load the audio
@@ -181,9 +227,11 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
         await _audioPlayer.setSource(source);
         AppLogger.debug('Source set successfully', tag: 'AudioPlayer');
       } catch (setSourceError) {
-        AppLogger.warning('setSource failed, trying alternative method', 
-            tag: 'AudioPlayer', 
-            data: setSourceError);
+        AppLogger.warning(
+          'setSource failed, trying alternative method',
+          tag: 'AudioPlayer',
+          data: setSourceError,
+        );
         // If setSource fails, try alternative method: play then immediately stop
         // This sometimes works better on macOS
         AppLogger.debug('Trying play() then stop() method', tag: 'AudioPlayer');
@@ -193,71 +241,83 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
         await _audioPlayer.stop();
         AppLogger.debug('Alternative method completed', tag: 'AudioPlayer');
       }
-      
+
       // Wait for the player to initialize and get duration
       // Duration will be updated via the onDurationChanged stream subscription
       // Give it more time on macOS as it may need to download metadata
       AppLogger.debug('Waiting for player initialization', tag: 'AudioPlayer');
       await Future.delayed(const Duration(milliseconds: 1000));
-      
+
       // Verify the source was set correctly by checking if we can get state
       final playerState = _audioPlayer.state;
-      AppLogger.debug('Player state checked', tag: 'AudioPlayer', data: {'state': playerState.toString()});
-      
+      AppLogger.debug(
+        'Player state checked',
+        tag: 'AudioPlayer',
+        data: {'state': playerState.toString()},
+      );
+
       if (playerState == PlayerState.disposed) {
         throw Exception('Audio player was disposed');
       }
-      
+
       state = state.copyWith(
         status: PlaybackStatus.stopped,
-        audioSource: actualSource, // Use the actual source (blob URL if converted)
+        audioSource:
+            actualSource, // Use the actual source (blob URL if converted)
       );
-      
-      AppLogger.info('Audio loaded successfully', tag: 'AudioPlayer', data: {
-        'source': audioSource,
-        'duration': state.duration,
-      });
+
+      AppLogger.info(
+        'Audio loaded successfully',
+        tag: 'AudioPlayer',
+        data: {'source': audioSource, 'duration': state.duration},
+      );
     } catch (e, stackTrace) {
-      AppLogger.error('Failed to load audio', 
-          tag: 'AudioPlayer',
-          error: e,
-          stackTrace: stackTrace);
+      AppLogger.error(
+        'Failed to load audio',
+        tag: 'AudioPlayer',
+        error: e,
+        stackTrace: stackTrace,
+      );
       // Provide user-friendly error messages
       String errorMessage = 'Failed to load audio';
-      final bool isUrl = audioSource.startsWith('http://') || 
-                        audioSource.startsWith('https://') ||
-                        audioSource.startsWith('file://');
-      
-      if (e.toString().contains('DarwinAudioError') || 
+      final bool isUrl =
+          audioSource.startsWith('http://') ||
+          audioSource.startsWith('https://') ||
+          audioSource.startsWith('file://');
+
+      if (e.toString().contains('DarwinAudioError') ||
           e.toString().contains('AVPlayerItem.Status.failed')) {
         if (isUrl) {
-          errorMessage = 'Unable to load audio from URL. This may be due to:\n'
+          errorMessage =
+              'Unable to load audio from URL. This may be due to:\n'
               '• Network connectivity issues\n'
               '• Invalid or inaccessible audio URL\n'
               '• macOS security restrictions\n\n'
               'Please check the URL and try again.';
         } else {
-          errorMessage = 'Unable to load local audio file. This may be due to:\n'
+          errorMessage =
+              'Unable to load local audio file. This may be due to:\n'
               '• File does not exist at the specified path\n'
               '• Insufficient file permissions\n'
               '• Unsupported audio format\n'
               '• macOS security restrictions\n\n'
               'Please check the file path and permissions.';
         }
-      } else if (e.toString().contains('Network') || 
-                 e.toString().contains('connection')) {
+      } else if (e.toString().contains('Network') ||
+          e.toString().contains('connection')) {
         errorMessage = 'Network error. Please check your internet connection.';
-      } else if (e.toString().contains('File') || 
-                 e.toString().contains('path') ||
-                 e.toString().contains('permission')) {
-        errorMessage = 'File access error. Please check:\n'
+      } else if (e.toString().contains('File') ||
+          e.toString().contains('path') ||
+          e.toString().contains('permission')) {
+        errorMessage =
+            'File access error. Please check:\n'
             '• File exists at the specified path\n'
             '• You have read permissions for the file\n'
             '• The file is a supported audio format';
       } else {
         errorMessage = 'Failed to load audio: ${e.toString()}';
       }
-      
+
       state = state.copyWith(
         status: PlaybackStatus.error,
         errorMessage: errorMessage,
@@ -268,7 +328,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   /// Start playing audio
   Future<void> play() async {
     AppLogger.info('Play requested', tag: 'AudioPlayer');
-    
+
     if (state.audioSource == null || state.audioSource!.isEmpty) {
       AppLogger.warning('No audio source loaded', tag: 'AudioPlayer');
       state = state.copyWith(
@@ -280,10 +340,18 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
 
     try {
       final playerState = _audioPlayer.state;
-      AppLogger.debug('Current player state', tag: 'AudioPlayer', data: {'state': playerState.toString(), 'appStatus': state.status.toString()});
-      
+      AppLogger.debug(
+        'Current player state',
+        tag: 'AudioPlayer',
+        data: {
+          'state': playerState.toString(),
+          'appStatus': state.status.toString(),
+        },
+      );
+
       // If already paused, just resume without reloading
-      if (playerState == PlayerState.paused && state.status == PlaybackStatus.paused) {
+      if (playerState == PlayerState.paused &&
+          state.status == PlaybackStatus.paused) {
         AppLogger.debug('Resuming from paused state', tag: 'AudioPlayer');
         await _audioPlayer.resume();
         state = state.copyWith(
@@ -293,53 +361,69 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
         AppLogger.info('Audio resumed from pause', tag: 'AudioPlayer');
         return;
       }
-      
+
       // Check if we need to load the audio source
       final currentSource = _audioPlayer.source;
-      bool needsLoad = currentSource == null || 
-                       playerState == PlayerState.stopped ||
-                       playerState == PlayerState.disposed;
-      
+      bool needsLoad =
+          currentSource == null ||
+          playerState == PlayerState.stopped ||
+          playerState == PlayerState.disposed;
+
       // Also check if the source has changed by comparing the source string
       if (!needsLoad) {
         final currentSourceStr = currentSource.toString();
         final expectedSourceStr = state.audioSource!;
         // Check if source matches (handles both UrlSource and DeviceFileSource)
-        final sourceMatches = currentSourceStr.contains(expectedSourceStr) ||
-                             (currentSourceStr.contains('UrlSource') && expectedSourceStr.startsWith('http')) ||
-                             (currentSourceStr.contains('DeviceFileSource') && !expectedSourceStr.startsWith('http'));
+        final sourceMatches =
+            currentSourceStr.contains(expectedSourceStr) ||
+            (currentSourceStr.contains('UrlSource') &&
+                expectedSourceStr.startsWith('http')) ||
+            (currentSourceStr.contains('DeviceFileSource') &&
+                !expectedSourceStr.startsWith('http'));
         needsLoad = !sourceMatches;
       }
-      
-      AppLogger.debug('Checking if audio needs to be loaded', 
-          tag: 'AudioPlayer', 
-          data: {'needsLoad': needsLoad, 'currentSource': currentSource?.toString(), 'playerState': playerState.toString()});
-      
+
+      AppLogger.debug(
+        'Checking if audio needs to be loaded',
+        tag: 'AudioPlayer',
+        data: {
+          'needsLoad': needsLoad,
+          'currentSource': currentSource?.toString(),
+          'playerState': playerState.toString(),
+        },
+      );
+
       if (needsLoad) {
         AppLogger.debug('Loading audio before playing', tag: 'AudioPlayer');
         await loadAudio(state.audioSource!);
       }
-      
+
       // Resume or play depending on current state
-      AppLogger.debug('Starting playback', tag: 'AudioPlayer', data: {'currentState': playerState.toString()});
-      
+      AppLogger.debug(
+        'Starting playback',
+        tag: 'AudioPlayer',
+        data: {'currentState': playerState.toString()},
+      );
+
       if (playerState == PlayerState.paused) {
         await _audioPlayer.resume();
       } else {
         await _audioPlayer.resume(); // resume() works for stopped state too
       }
-      
+
       state = state.copyWith(
         status: PlaybackStatus.playing,
         errorMessage: null,
       );
-      
+
       AppLogger.info('Audio playing', tag: 'AudioPlayer');
     } catch (e, stackTrace) {
-      AppLogger.error('Failed to play audio', 
-          tag: 'AudioPlayer',
-          error: e,
-          stackTrace: stackTrace);
+      AppLogger.error(
+        'Failed to play audio',
+        tag: 'AudioPlayer',
+        error: e,
+        stackTrace: stackTrace,
+      );
       state = state.copyWith(
         status: PlaybackStatus.error,
         errorMessage: 'Failed to play audio: ${e.toString()}',
@@ -355,9 +439,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
 
     try {
       await _audioPlayer.pause();
-      state = state.copyWith(
-        status: PlaybackStatus.paused,
-      );
+      state = state.copyWith(status: PlaybackStatus.paused);
     } catch (e) {
       state = state.copyWith(
         status: PlaybackStatus.error,
@@ -370,10 +452,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   Future<void> stop() async {
     try {
       await _audioPlayer.stop();
-      state = state.copyWith(
-        status: PlaybackStatus.stopped,
-        position: 0,
-      );
+      state = state.copyWith(status: PlaybackStatus.stopped, position: 0);
     } catch (e) {
       state = state.copyWith(
         status: PlaybackStatus.error,
@@ -446,6 +525,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
       WebAudioHelper.revokeBlobUrl(_currentBlobUrl!);
       _currentBlobUrl = null;
     }
+    _originalRequestedSource = null;
     state = AudioPlaybackState.initial();
   }
 
@@ -453,7 +533,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
   /// Base64 strings are typically long and contain only base64 characters
   bool _isBase64String(String str) {
     if (str.length < 100) return false;
-    
+
     // Base64 characters: A-Z, a-z, 0-9, +, /, = (for padding)
     final base64Pattern = RegExp(r'^[A-Za-z0-9+/=]+$');
     return base64Pattern.hasMatch(str);
@@ -472,7 +552,7 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     if (source.contains('audio/ogg') || source.contains('.ogg')) {
       return 'ogg';
     }
-    
+
     // Default to mp3 if we can't determine
     return 'mp3';
   }
@@ -497,4 +577,3 @@ class AudioPlaybackNotifier extends StateNotifier<AudioPlaybackState> {
     }
   }
 }
-

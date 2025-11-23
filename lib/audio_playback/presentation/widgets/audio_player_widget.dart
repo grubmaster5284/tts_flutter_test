@@ -37,8 +37,11 @@ class AudioPlayerWidget extends ConsumerWidget {
     final notifier = ref.read(audioPlaybackNotifierRefProvider);
 
     // Load initial audio source if provided
+    // Only load if we have a source and we're not currently loading
+    // The notifier will prevent duplicate loads of the same source
     if (initialAudioSource != null &&
-        state.audioSource != initialAudioSource) {
+        initialAudioSource!.isNotEmpty &&
+        !state.isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifier.loadAudio(initialAudioSource!);
       });
@@ -228,4 +231,3 @@ class AudioPlayerWidget extends ConsumerWidget {
     );
   }
 }
-

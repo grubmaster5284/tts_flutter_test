@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -245,7 +246,7 @@ class GeminiTtsRemoteService {
       'voice': {
         'languageCode': request.language ?? 'en-US',
         'name': request.voice ?? 'Kore',
-        'modelName': 'gemini-2.5-pro-tts',
+        'modelName': 'gemini-2.5-flash-lite-preview-tts',
       },
       'audioConfig': {
         'audioEncoding': formatMap[request.audioFormat] ?? 'MP3',
@@ -434,78 +435,106 @@ class GeminiTtsRemoteService {
     try {
       String? keyContent;
       
-      // 1. Check GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
-      final envKeyPath = Platform.environment['GOOGLE_APPLICATION_CREDENTIALS'] ?? 
-                         dotenv.env['GOOGLE_APPLICATION_CREDENTIALS'];
-      if (envKeyPath != null && File(envKeyPath).existsSync()) {
-        final keyFile = File(envKeyPath);
-        keyContent = await keyFile.readAsString();
-      } else {
-        // 2. Check for service account JSON in .env file (GOOGLE_SERVICE_ACCOUNT_JSON)
+      if (kIsWeb) {
+        // On web, only use dotenv or assets (no file system access)
+        // 1. Check for service account JSON in .env file (GOOGLE_SERVICE_ACCOUNT_JSON)
         final serviceAccountJson = dotenv.env['GOOGLE_SERVICE_ACCOUNT_JSON'];
         if (serviceAccountJson != null && serviceAccountJson.isNotEmpty) {
           keyContent = serviceAccountJson;
         } else {
-          // 3. Try to load from assets (if placed in lib folder and added to pubspec.yaml)
+          // 2. Try to load from assets (if placed in lib folder and added to pubspec.yaml)
           try {
             keyContent = await rootBundle.loadString(
               'lib/speech_synthesis/data/constants/service-account-key.json'
             );
           } catch (e) {
-            // Asset not found, try file system paths
-            String? keyFilePath;
-            
-            // 4. Try common file system locations (same as Python)
-            final possiblePaths = [
-              'service-account-key.json',
-              '.gcloud/service-account-key.json',
-              'lib/speech_synthesis/data/constants/service-account-key.json',
-            ];
-            
-            // Try to find project root
+            // Asset not found on web
+            AppLogger.debug('Service account key not found in assets on web', tag: 'GeminiTtsService');
+          }
+        }
+      } else {
+        // On non-web platforms, use full file system access
+        // 1. Check GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
+        final envKeyPath = Platform.environment['GOOGLE_APPLICATION_CREDENTIALS'] ?? 
+                           dotenv.env['GOOGLE_APPLICATION_CREDENTIALS'];
+        if (envKeyPath != null && File(envKeyPath).existsSync()) {
+          final keyFile = File(envKeyPath);
+          keyContent = await keyFile.readAsString();
+        } else {
+          // 2. Check for service account JSON in .env file (GOOGLE_SERVICE_ACCOUNT_JSON)
+          final serviceAccountJson = dotenv.env['GOOGLE_SERVICE_ACCOUNT_JSON'];
+          if (serviceAccountJson != null && serviceAccountJson.isNotEmpty) {
+            keyContent = serviceAccountJson;
+          } else {
+            // 3. Try to load from assets (if placed in lib folder and added to pubspec.yaml)
             try {
-              // For Flutter apps, try to find project root relative to current working directory
-              final currentDir = Directory.current;
-              var searchDir = currentDir;
-              
-              // Search up to 5 levels for project root
-              for (int i = 0; i < 5; i++) {
-                for (final relativePath in possiblePaths) {
-                  final fullPath = path.join(searchDir.path, relativePath);
-                  if (File(fullPath).existsSync()) {
-                    keyFilePath = fullPath;
-                    break;
-                  }
-                }
-                if (keyFilePath != null) break;
-                
-                final parent = searchDir.parent;
-                if (parent.path == searchDir.path) break; // Reached root
-                searchDir = parent;
-              }
+              keyContent = await rootBundle.loadString(
+                'lib/speech_synthesis/data/constants/service-account-key.json'
+              );
             } catch (e) {
-              // If we can't find project root, continue with error message
-            }
-            
-            if (keyFilePath != null) {
-              final keyFile = File(keyFilePath);
-              keyContent = await keyFile.readAsString();
+              // Asset not found, try file system paths
+              String? keyFilePath;
+              
+              // 4. Try common file system locations (same as Python)
+              final possiblePaths = [
+                'service-account-key.json',
+                '.gcloud/service-account-key.json',
+                'lib/speech_synthesis/data/constants/service-account-key.json',
+              ];
+              
+              // Try to find project root
+              try {
+                // For Flutter apps, try to find project root relative to current working directory
+                final currentDir = Directory.current;
+                var searchDir = currentDir;
+                
+                // Search up to 5 levels for project root
+                for (int i = 0; i < 5; i++) {
+                  for (final relativePath in possiblePaths) {
+                    final fullPath = path.join(searchDir.path, relativePath);
+                    if (File(fullPath).existsSync()) {
+                      keyFilePath = fullPath;
+                      break;
+                    }
+                  }
+                  if (keyFilePath != null) break;
+                  
+                  final parent = searchDir.parent;
+                  if (parent.path == searchDir.path) break; // Reached root
+                  searchDir = parent;
+                }
+              } catch (e) {
+                // If we can't find project root, continue with error message
+              }
+              
+              if (keyFilePath != null) {
+                final keyFile = File(keyFilePath);
+                keyContent = await keyFile.readAsString();
+              }
             }
           }
         }
       }
       
       if (keyContent == null) {
-        final errorMsg = (
-          'Google Cloud TTS not configured. '
-          'Set up authentication using one of:\n'
-          '1. .env file: Add GOOGLE_SERVICE_ACCOUNT_JSON with the full JSON content\n'
-          '2. .env file: Add GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n'
-          '3. Environment variable: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n'
-          '4. Place service-account-key.json in project root\n'
-          '5. Place service-account-key.json in lib/speech_synthesis/data/constants/ (as asset)\n'
-          'Error: Credentials not found'
-        );
+        final errorMsg = kIsWeb
+            ? (
+                'Google Cloud TTS not configured for web. '
+                'Set up authentication using one of:\n'
+                '1. .env file: Add GOOGLE_SERVICE_ACCOUNT_JSON with the full JSON content\n'
+                '2. Place service-account-key.json in lib/speech_synthesis/data/constants/ (as asset)\n'
+                'Error: Credentials not found'
+              )
+            : (
+                'Google Cloud TTS not configured. '
+                'Set up authentication using one of:\n'
+                '1. .env file: Add GOOGLE_SERVICE_ACCOUNT_JSON with the full JSON content\n'
+                '2. .env file: Add GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n'
+                '3. Environment variable: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n'
+                '4. Place service-account-key.json in project root\n'
+                '5. Place service-account-key.json in lib/speech_synthesis/data/constants/ (as asset)\n'
+                'Error: Credentials not found'
+              );
         _credentialsError = errorMsg;
         return Failure(SpeechSynthesisError.serviceError(errorMsg));
       }
