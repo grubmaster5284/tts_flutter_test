@@ -72,9 +72,10 @@ class SpeechRequestDto with _$SpeechRequestDto {
     /// Only used by OpenAI TTS service
     @Default(1.0) double speed,
     
-    /// Optional instructions parameter for OpenAI TTS
-    /// Provides guidance on how to speak the text
-    /// Only used by OpenAI TTS service
+    /// Optional instructions/prompt parameter for TTS services
+    /// - OpenAI: Provides guidance on how to speak the text (instructions)
+    /// - Gemini: Provides tone and speaking style guidance (prompt)
+    /// Example for Gemini: "Say the following in an elated way"
     String? instructions,
   }) = _SpeechRequestDto;
   

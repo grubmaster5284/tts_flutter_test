@@ -131,10 +131,12 @@ class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
         formattedSpeed = speed.clamp(0.25, 4.0);
       }
       
-      // Format instructions (OpenAI only)
+      // Format instructions (OpenAI and Gemini)
+      // OpenAI uses "instructions", Gemini uses "prompt" (both use the same field)
       String? formattedInstructions = instructions;
-      if (selectedService != TTSServiceModel.openai) {
-        formattedInstructions = null; // Only OpenAI supports instructions
+      if (selectedService != TTSServiceModel.openai && 
+          selectedService != TTSServiceModel.gemini) {
+        formattedInstructions = null; // Only OpenAI and Gemini support instructions/prompt
       }
       
       // Create value objects with formatted values

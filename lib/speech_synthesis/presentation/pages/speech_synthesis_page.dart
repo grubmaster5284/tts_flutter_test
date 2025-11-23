@@ -52,11 +52,16 @@ class SpeechSynthesisPage extends ConsumerWidget {
             _buildAudioFormatSelector(ref, state.selectedService),
             const SizedBox(height: 16),
             
-            // Service-specific fields (OpenAI only)
+            // Service-specific fields
             if (state.selectedService == TTSServiceModel.openai) ...[
               _buildSpeedSelector(context, ref),
               const SizedBox(height: 16),
-              _buildInstructionsField(ref),
+            ],
+            
+            // Instructions field (OpenAI and Gemini)
+            if (state.selectedService == TTSServiceModel.openai || 
+                state.selectedService == TTSServiceModel.gemini) ...[
+              _buildInstructionsField(ref, state.selectedService),
               const SizedBox(height: 16),
             ],
             
@@ -281,15 +286,23 @@ class SpeechSynthesisPage extends ConsumerWidget {
     );
   }
   
-  /// Builds instructions text field for OpenAI
-  Widget _buildInstructionsField(WidgetRef ref) {
-    return _InstructionsTextField(key: const ValueKey('instructions_field'));
+  /// Builds instructions text field for OpenAI and Gemini
+  Widget _buildInstructionsField(WidgetRef ref, TTSServiceModel service) {
+    return _InstructionsTextField(
+      key: ValueKey('instructions_field_${service.name}'),
+      service: service,
+    );
   }
 }
 
 /// Stateful widget for instructions text field to properly manage controller
 class _InstructionsTextField extends ConsumerStatefulWidget {
-  const _InstructionsTextField({super.key});
+  final TTSServiceModel service;
+  
+  const _InstructionsTextField({
+    super.key,
+    required this.service,
+  });
   
   @override
   ConsumerState<_InstructionsTextField> createState() => _InstructionsTextFieldState();
@@ -330,16 +343,35 @@ class _InstructionsTextFieldState extends ConsumerState<_InstructionsTextField> 
       });
     }
     
+    // Service-specific helper text
+    final String helperText;
+    final String hintText;
+    
+    switch (widget.service) {
+      case TTSServiceModel.openai:
+        helperText = 'OpenAI-specific: Produces subtle tone/style adjustments. For stronger emotional expression, try different voices or adjust speed. Note: Instructions have limited effectiveness for dramatic emotions.';
+        hintText = 'e.g., "Speak professionally" or "Pause after each sentence"';
+        break;
+      case TTSServiceModel.gemini:
+        helperText = 'Gemini-specific: Provides guidance on tone and speaking style. Example: "Say the following in an elated way"';
+        hintText = 'e.g., "Say the following in an elated way" or "Speak with enthusiasm"';
+        break;
+      case TTSServiceModel.polly:
+        helperText = 'Instructions not yet supported for Polly';
+        hintText = 'Not available';
+        break;
+    }
+    
     return TextField(
       controller: _controller,
       maxLines: 3,
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.left,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Instructions (Optional)',
-        hintText: 'e.g., "Speak professionally" or "Pause after each sentence"',
-        border: OutlineInputBorder(),
-        helperText: 'OpenAI-specific: Produces subtle tone/style adjustments. For stronger emotional expression, try different voices or adjust speed. Note: Instructions have limited effectiveness for dramatic emotions.',
+        hintText: hintText,
+        border: const OutlineInputBorder(),
+        helperText: helperText,
       ),
       onChanged: (value) {
         if (!_isUpdatingFromProvider) {

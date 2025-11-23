@@ -1,6 +1,7 @@
 // [NEW] Pure Dart Gemini TTS service - direct HTTP calls to Google Cloud TTS API
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -67,10 +68,10 @@ class GeminiTtsRemoteService {
   /// Synthesizes speech from text using Google Cloud TTS API
   /// 
   /// **Process:**
-  /// 1. Gets OAuth2 access token from service account key
-  /// 2. Makes HTTP POST request to Google Cloud TTS API
-  /// 3. Parses response JSON to DTO
-  /// 4. Handles errors (network, authentication, API errors)
+  /// 1. Checks if text + prompt exceeds 512-byte limit (after normalization)
+  /// 2. If yes, splits text into chunks and synthesizes each separately
+  /// 3. Concatenates audio responses from all chunks
+  /// 4. If no, makes single API call
   /// 
   /// **Parameters:**
   /// - `request`: SpeechRequestDto containing text, voice, language, etc.
@@ -86,83 +87,98 @@ class GeminiTtsRemoteService {
       'voice': request.voice,
       'language': request.language,
       'audioFormat': request.audioFormat,
+      'hasPrompt': request.instructions != null && request.instructions!.isNotEmpty,
     });
     
     try {
-      // Step 1: Get OAuth2 access token
-      final tokenResult = await _getAccessToken();
-      if (tokenResult.isFailure) {
-        return Failure(tokenResult.failure);
+      // Step 1: Check if text + prompt exceeds 512-byte limit
+      // Gemini TTS has a limit: text + prompt must be < 512 bytes after normalization
+      // We use UTF-8 encoding to calculate byte size (more accurate than character count)
+      final promptSize = request.instructions != null && request.instructions!.isNotEmpty
+          ? utf8.encode(request.instructions!).length
+          : 0;
+      final textSize = utf8.encode(request.text).length;
+      
+      // Reserve some buffer (50 bytes) to account for normalization overhead
+      const maxSize = 512;
+      const bufferSize = 50;
+      final maxTextSize = maxSize - promptSize - bufferSize;
+      
+      // If text fits within limit, make single API call
+      if (textSize <= maxTextSize) {
+        return await _synthesizeSingleChunk(request);
       }
-      final accessToken = tokenResult.success;
       
-      // Step 2: Build request payload
-      final formatMap = {
-        'mp3': 'MP3',
-        'wav': 'LINEAR16',
-        'ogg': 'OGG_OPUS',
-        'opus': 'OGG_OPUS',
-      };
+      // Step 2: Text is too long, split into chunks
+      AppLogger.info('Text exceeds 512-byte limit, splitting into chunks', tag: 'GeminiTtsService', data: {
+        'textSize': textSize,
+        'promptSize': promptSize,
+        'maxTextSize': maxTextSize,
+      });
       
-      final payload = <String, dynamic>{
-        'input': {
-          'text': request.text,
-        },
-        'voice': {
-          'languageCode': request.language ?? 'en-US',
-          'name': request.voice ?? 'Kore',
-          'modelName': 'gemini-2.5-flash-tts',
-        },
-        'audioConfig': {
-          'audioEncoding': formatMap[request.audioFormat] ?? 'MP3',
-        },
-      };
+      final chunks = _splitTextIntoChunks(request.text, maxTextSize);
+      AppLogger.info('Split text into ${chunks.length} chunks', tag: 'GeminiTtsService', data: {
+        'chunkCount': chunks.length,
+        'chunkSizes': chunks.map((c) => utf8.encode(c).length).toList(),
+      });
       
-      // Step 3: Make HTTP POST request
-      final response = await _client
-          .post(
-            Uri.parse(_apiUrl),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
+      // Step 3: Synthesize each chunk
+      final audioChunks = <Uint8List>[];
+      int totalDurationMs = 0;
       
-      // Step 4: Handle response
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-        final audioContent = jsonData['audioContent'] as String?;
-        
-        if (audioContent == null) {
-          return Failure(SpeechSynthesisError.unknown('Missing audioContent in API response'));
-        }
-        
-        // Calculate duration (estimate: 150 words per minute)
-        final wordCount = request.text.split(' ').length;
-        final durationMs = ((wordCount / 150) * 60 * 1000).round();
-        
-        final dto = SpeechResponseDto(
-          audioData: audioContent,
+      for (int i = 0; i < chunks.length; i++) {
+        final chunkRequest = SpeechRequestDto(
+          text: chunks[i],
+          service: request.service,
+          voice: request.voice,
+          language: request.language,
           audioFormat: request.audioFormat,
-          durationMs: durationMs,
-          metadata: jsonEncode({
-            'service': 'gemini',
-            'voice': request.voice ?? 'Kore',
-          }),
+          speed: request.speed,
+          // Apply prompt/instructions to all chunks to maintain consistent tone
+          instructions: request.instructions,
         );
         
-        AppLogger.info('Gemini TTS synthesis successful', tag: 'GeminiTtsService', data: {
-          'format': dto.audioFormat,
-          'duration': dto.durationMs,
-        });
+        final chunkResult = await _synthesizeSingleChunk(chunkRequest);
+        if (chunkResult.isFailure) {
+          return Failure(chunkResult.failure);
+        }
         
-        return Success(dto);
-      } else {
-        // Step 5: Handle HTTP errors
-        return Failure(_mapHttpErrorToDomainError(response.statusCode, response.body));
+        final chunkDto = chunkResult.success;
+        final audioBytes = base64Decode(chunkDto.audioData);
+        audioChunks.add(audioBytes);
+        totalDurationMs += chunkDto.durationMs;
       }
+      
+      // Step 4: Concatenate all audio chunks
+      final totalLength = audioChunks.fold<int>(0, (sum, chunk) => sum + chunk.length);
+      final totalAudioBytes = Uint8List(totalLength);
+      var offset = 0;
+      for (final chunk in audioChunks) {
+        totalAudioBytes.setRange(offset, offset + chunk.length, chunk);
+        offset += chunk.length;
+      }
+      
+      final concatenatedAudioBase64 = base64Encode(totalAudioBytes);
+      
+      final dto = SpeechResponseDto(
+        audioData: concatenatedAudioBase64,
+        audioFormat: request.audioFormat,
+        durationMs: totalDurationMs,
+        metadata: jsonEncode({
+          'service': 'gemini',
+          'voice': request.voice ?? 'Kore',
+          'chunked': true,
+          'chunkCount': chunks.length,
+        }),
+      );
+      
+      AppLogger.info('Gemini TTS synthesis successful (chunked)', tag: 'GeminiTtsService', data: {
+        'format': dto.audioFormat,
+        'duration': dto.durationMs,
+        'chunkCount': chunks.length,
+      });
+      
+      return Success(dto);
     } on http.ClientException catch (e) {
       AppLogger.error('Network error during Gemini TTS request', tag: 'GeminiTtsService', error: e);
       return Failure(SpeechSynthesisError.networkError());
@@ -181,6 +197,217 @@ class GeminiTtsRemoteService {
           stackTrace: stackTrace);
       return Failure(SpeechSynthesisError.unknown(e.toString()));
     }
+  }
+  
+  /// Synthesizes a single chunk of text (used for both single and chunked requests)
+  /// 
+  /// **Process:**
+  /// 1. Gets OAuth2 access token
+  /// 2. Makes HTTP POST request to Google Cloud TTS API
+  /// 3. Parses response JSON to DTO
+  /// 
+  /// **Parameters:**
+  /// - `request`: SpeechRequestDto containing text, voice, language, etc.
+  /// 
+  /// **Returns:**
+  /// - `Result.success(SpeechResponseDto)`: On successful synthesis
+  /// - `Result.failure(SpeechSynthesisError)`: On error
+  Future<Result<SpeechResponseDto, SpeechSynthesisError>> _synthesizeSingleChunk(
+    SpeechRequestDto request,
+  ) async {
+    // Step 1: Get OAuth2 access token
+    final tokenResult = await _getAccessToken();
+    if (tokenResult.isFailure) {
+      return Failure(tokenResult.failure);
+    }
+    final accessToken = tokenResult.success;
+    
+    // Step 2: Build request payload
+    final formatMap = {
+      'mp3': 'MP3',
+      'wav': 'LINEAR16',
+      'ogg': 'OGG_OPUS',
+      'opus': 'OGG_OPUS',
+    };
+    
+    // Build input object with text and optional prompt
+    final inputMap = <String, dynamic>{
+      'text': request.text,
+    };
+    
+    // Add prompt if provided (same as Python implementation)
+    if (request.instructions != null && request.instructions!.isNotEmpty) {
+      inputMap['prompt'] = request.instructions;
+    }
+    
+    final payload = <String, dynamic>{
+      'input': inputMap,
+      'voice': {
+        'languageCode': request.language ?? 'en-US',
+        'name': request.voice ?? 'Kore',
+        'modelName': 'gemini-2.5-pro-tts',
+      },
+      'audioConfig': {
+        'audioEncoding': formatMap[request.audioFormat] ?? 'MP3',
+      },
+    };
+    
+    // Step 3: Make HTTP POST request
+    final response = await _client
+        .post(
+          Uri.parse(_apiUrl),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(payload),
+        )
+        .timeout(_timeout);
+    
+    // Step 4: Handle response
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+      final audioContent = jsonData['audioContent'] as String?;
+      
+      if (audioContent == null) {
+        return Failure(SpeechSynthesisError.unknown('Missing audioContent in API response'));
+      }
+      
+      // Calculate duration (estimate: 150 words per minute)
+      final wordCount = request.text.split(' ').length;
+      final durationMs = ((wordCount / 150) * 60 * 1000).round();
+      
+      final dto = SpeechResponseDto(
+        audioData: audioContent,
+        audioFormat: request.audioFormat,
+        durationMs: durationMs,
+        metadata: jsonEncode({
+          'service': 'gemini',
+          'voice': request.voice ?? 'Kore',
+        }),
+      );
+      
+      return Success(dto);
+    } else {
+      // Step 5: Handle HTTP errors
+      return Failure(_mapHttpErrorToDomainError(response.statusCode, response.body));
+    }
+  }
+  
+  /// Splits text into chunks that fit within the byte limit
+  /// 
+  /// **Strategy:**
+  /// 1. Try to split at sentence boundaries (., !, ?)
+  /// 2. If that's not possible, split at word boundaries
+  /// 3. If that's not possible, split at character boundaries (last resort)
+  /// 
+  /// **Parameters:**
+  /// - `text`: The text to split
+  /// - `maxBytes`: Maximum bytes per chunk
+  /// 
+  /// **Returns:**
+  /// - List of text chunks, each within the byte limit
+  List<String> _splitTextIntoChunks(String text, int maxBytes) {
+    if (maxBytes <= 0) {
+      return [text]; // Safety check
+    }
+    
+    final chunks = <String>[];
+    var remainingText = text;
+    
+    while (remainingText.isNotEmpty) {
+      final remainingBytes = utf8.encode(remainingText).length;
+      
+      // If remaining text fits, add it and break
+      if (remainingBytes <= maxBytes) {
+        chunks.add(remainingText);
+        break;
+      }
+      
+      // Try to find a good split point
+      String? chunk;
+      int? splitIndex;
+      
+      // Strategy 1: Try to split at sentence boundaries
+      // Search from the middle of maxBytes to find a sentence ender
+      final searchStart = (maxBytes * 0.4).round(); // Start searching from 40% of maxBytes
+      final sentenceEnders = ['. ', '! ', '? ', '.\n', '!\n', '?\n'];
+      for (final ender in sentenceEnders) {
+        // Find sentence ender starting from searchStart position
+        final index = remainingText.indexOf(ender, searchStart);
+        if (index > 0) {
+          final candidate = remainingText.substring(0, index + ender.length);
+          final candidateBytes = utf8.encode(candidate).length;
+          if (candidateBytes <= maxBytes) {
+            chunk = candidate;
+            splitIndex = index + ender.length;
+            break;
+          }
+        }
+      }
+      
+      // Strategy 2: If no sentence boundary found, try word boundaries
+      if (chunk == null) {
+        final words = remainingText.split(' ');
+        var currentChunk = '';
+        
+        for (final word in words) {
+          final testChunk = currentChunk.isEmpty ? word : '$currentChunk $word';
+          final testBytes = utf8.encode(testChunk).length;
+          
+          if (testBytes <= maxBytes) {
+            currentChunk = testChunk;
+          } else {
+            // Current chunk is full, use it
+            if (currentChunk.isNotEmpty) {
+              chunk = currentChunk;
+              splitIndex = remainingText.indexOf(chunk) + chunk.length;
+              break;
+            } else {
+              // Single word is too long, must split at character boundary
+              break;
+            }
+          }
+        }
+        
+        // If we built a chunk from words, use it
+        if (chunk == null && currentChunk.isNotEmpty) {
+          chunk = currentChunk;
+          splitIndex = remainingText.indexOf(chunk) + chunk.length;
+        }
+      }
+      
+      // Strategy 3: Last resort - split at character boundary
+      if (chunk == null) {
+        // Find the maximum character index that fits within maxBytes
+        var charIndex = 0;
+        var currentBytes = 0;
+        
+        for (int i = 0; i < remainingText.length; i++) {
+          final charBytes = utf8.encode(remainingText[i]).length;
+          if (currentBytes + charBytes > maxBytes) {
+            break;
+          }
+          currentBytes += charBytes;
+          charIndex = i + 1;
+        }
+        
+        if (charIndex > 0) {
+          chunk = remainingText.substring(0, charIndex);
+          splitIndex = charIndex;
+        } else {
+          // Even a single character exceeds limit (shouldn't happen with reasonable limits)
+          chunk = remainingText.substring(0, 1);
+          splitIndex = 1;
+        }
+      }
+      
+      // Add chunk and update remaining text
+      chunks.add(chunk);
+      remainingText = remainingText.substring(splitIndex!);
+    }
+    
+    return chunks;
   }
   
   /// Gets OAuth2 credentials using service account key file (similar to Python _get_credentials)
