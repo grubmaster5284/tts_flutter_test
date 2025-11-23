@@ -88,22 +88,22 @@ class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
       }
       
       // Format language based on service
+      // Note: LanguageVO only accepts 2-character ISO 639-1 codes (e.g., "en")
+      // But Gemini service needs full format (e.g., "en-US")
+      // So we extract the 2-character code for LanguageVO, and format it for DTO in repository
       String? formattedLanguage = language;
       if (formattedLanguage != null && formattedLanguage.isNotEmpty) {
-        // OpenAI: language is optional, keep as-is if provided
-        // Gemini: expects format like "en-US", validate/format if needed
-        if (selectedService == TTSServiceModel.gemini) {
-          // Ensure proper format (e.g., "en" -> "en-US", "en-US" stays "en-US")
-          if (formattedLanguage.length == 2) {
-            formattedLanguage = '$formattedLanguage-US'; // Default to US variant
-          }
-        }
+        // Extract just the 2-character language code for LanguageVO
+        // This works for both "en" and "en-US" formats
+        formattedLanguage = formattedLanguage.length >= 2 
+            ? formattedLanguage.substring(0, 2).toLowerCase()
+            : formattedLanguage.toLowerCase();
       } else {
         // Set service-specific defaults
         if (selectedService == TTSServiceModel.gemini) {
-          formattedLanguage = 'en-US'; // Gemini default
+          formattedLanguage = 'en'; // For domain model (2 chars, will be formatted to "en-US" in repository)
         }
-        // OpenAI doesn't require language
+        // OpenAI doesn't require language, keep as null
       }
       
       // Format audio format based on service

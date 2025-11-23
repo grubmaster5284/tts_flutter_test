@@ -180,11 +180,19 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
     // Step 3: Convert domain model to DTO with service-specific parameters
     // DTOs use primitive types (String, int) instead of value objects for serialization
     // Include service-specific parameters (speed, instructions) that aren't in domain model
+    // Format language based on service: Gemini needs "en-US" format, others use 2-char code
+    String? formattedLanguage = request.language?.value;
+    if (formattedLanguage != null && request.service == TTSServiceModel.gemini) {
+      // Gemini service expects format like "en-US", but domain model has just "en"
+      // Format it to "en-US" (default to US variant)
+      formattedLanguage = '$formattedLanguage-US';
+    }
+    
     final requestDto = SpeechRequestDto(
       text: request.text.value,
       service: serviceValue,
       voice: request.voice?.value,
-      language: request.language?.value,
+      language: formattedLanguage,
       audioFormat: request.audioFormat?.value ?? 'mp3',
       speed: speed ?? 1.0, // Default speed for OpenAI
       instructions: instructions, // Optional instructions for OpenAI
