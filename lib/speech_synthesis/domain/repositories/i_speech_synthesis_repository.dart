@@ -20,10 +20,20 @@ abstract class ISpeechSynthesisRepository {
   /// that can be either success (with SpeechResponseModel) or failure (with SpeechSynthesisError).
   /// The Result type provides type-safe error handling without exceptions.
   /// 
+  /// **Service-Specific Parameters:**
+  /// - `speed`: Optional speed parameter for OpenAI TTS (0.25 to 4.0, default: 1.0)
+  /// - `instructions`: Optional instructions parameter for OpenAI TTS
+  /// 
+  /// These parameters are service-specific and not part of the domain model, so they're
+  /// passed separately. The repository implementation will include them in the DTO when
+  /// calling the appropriate service.
+  /// 
   /// Returns [Result.success] with [SpeechResponseModel] on success.
   /// Returns [Result.failure] with [SpeechSynthesisError] on failure.
   Future<Result<SpeechResponseModel, SpeechSynthesisError>> convertTextToSpeech(
-    SpeechRequestModel request,
-  );
+    SpeechRequestModel request, {
+    double? speed,
+    String? instructions,
+  });
 }
 

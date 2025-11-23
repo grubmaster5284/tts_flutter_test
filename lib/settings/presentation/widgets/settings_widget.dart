@@ -211,6 +211,7 @@ class SettingsWidget extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: TextField(
+        textDirection: TextDirection.ltr,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,

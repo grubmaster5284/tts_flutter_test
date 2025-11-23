@@ -27,12 +27,21 @@ class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
   SpeechSynthesisNotifier(this._repository) : super(SpeechSynthesisState.initial());
   
   /// Convert text to speech
+  /// 
+  /// This method handles service-specific formatting and validation before creating
+  /// the domain model. It ensures that:
+  /// - Voice is formatted correctly for each service
+  /// - Language is formatted correctly for each service
+  /// - Audio format is valid for each service
+  /// - Service-specific parameters (speed, instructions) are properly set
   Future<void> convertTextToSpeech({
     required String text,
     TTSServiceModel? service,
     String? voice,
     String? language,
     String? audioFormat,
+    double? speed,
+    String? instructions,
   }) async {
     final selectedService = service ?? state.selectedService;
     
@@ -50,17 +59,92 @@ class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
     );
     
     try {
-      // Create value objects
-      AppLogger.debug('Creating value objects', tag: 'SpeechSynthesis');
-      final textVO = TextVO(text);
-      final voiceVO = voice != null ? VoiceVO(voice) : null;
-      final languageVO = language != null ? LanguageVO(language) : null;
-      AudioFormatVO? audioFormatVO;
-      if (audioFormat != null) {
-        audioFormatVO = AudioFormatVO(audioFormat);
+      // Service-specific formatting and validation
+      AppLogger.debug('Formatting parameters for service: ${selectedService.name}', tag: 'SpeechSynthesis');
+      
+      // Format voice based on service
+      String? formattedVoice = voice;
+      if (formattedVoice != null && formattedVoice.isNotEmpty) {
+        // OpenAI: validate voice is in allowed list
+        if (selectedService == TTSServiceModel.openai) {
+          const validOpenAIVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+          if (!validOpenAIVoices.contains(formattedVoice.toLowerCase())) {
+            // Use default if invalid
+            formattedVoice = 'alloy';
+            AppLogger.warning('Invalid OpenAI voice, using default: alloy', tag: 'SpeechSynthesis');
+          } else {
+            formattedVoice = formattedVoice.toLowerCase();
+          }
+        }
+        // Gemini: keep as-is (accepts voice names like "Kore")
+        // Polly: (not yet implemented)
+      } else {
+        // Set service-specific defaults
+        if (selectedService == TTSServiceModel.openai) {
+          formattedVoice = 'alloy'; // OpenAI default
+        } else if (selectedService == TTSServiceModel.gemini) {
+          formattedVoice = 'Kore'; // Gemini default
+        }
       }
       
-      // Create request model with default audio format if not provided
+      // Format language based on service
+      String? formattedLanguage = language;
+      if (formattedLanguage != null && formattedLanguage.isNotEmpty) {
+        // OpenAI: language is optional, keep as-is if provided
+        // Gemini: expects format like "en-US", validate/format if needed
+        if (selectedService == TTSServiceModel.gemini) {
+          // Ensure proper format (e.g., "en" -> "en-US", "en-US" stays "en-US")
+          if (formattedLanguage.length == 2) {
+            formattedLanguage = '$formattedLanguage-US'; // Default to US variant
+          }
+        }
+      } else {
+        // Set service-specific defaults
+        if (selectedService == TTSServiceModel.gemini) {
+          formattedLanguage = 'en-US'; // Gemini default
+        }
+        // OpenAI doesn't require language
+      }
+      
+      // Format audio format based on service
+      String formattedAudioFormat = audioFormat ?? 'mp3';
+      
+      // Validate audio format for service
+      if (selectedService == TTSServiceModel.openai) {
+        const validFormats = ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm'];
+        if (!validFormats.contains(formattedAudioFormat.toLowerCase())) {
+          formattedAudioFormat = 'mp3'; // Default
+          AppLogger.warning('Invalid OpenAI audio format, using default: mp3', tag: 'SpeechSynthesis');
+        }
+      } else if (selectedService == TTSServiceModel.gemini) {
+        const validFormats = ['mp3', 'wav', 'ogg', 'opus'];
+        if (!validFormats.contains(formattedAudioFormat.toLowerCase())) {
+          formattedAudioFormat = 'mp3'; // Default
+          AppLogger.warning('Invalid Gemini audio format, using default: mp3', tag: 'SpeechSynthesis');
+        }
+      }
+      
+      // Format speed (OpenAI only, default: 1.0)
+      double formattedSpeed = 1.0;
+      if (selectedService == TTSServiceModel.openai && speed != null) {
+        // Clamp speed to valid range (0.25 to 4.0)
+        formattedSpeed = speed.clamp(0.25, 4.0);
+      }
+      
+      // Format instructions (OpenAI only)
+      String? formattedInstructions = instructions;
+      if (selectedService != TTSServiceModel.openai) {
+        formattedInstructions = null; // Only OpenAI supports instructions
+      }
+      
+      // Create value objects with formatted values
+      AppLogger.debug('Creating value objects', tag: 'SpeechSynthesis');
+      final textVO = TextVO(text);
+      final voiceVO = formattedVoice != null ? VoiceVO(formattedVoice) : null;
+      final languageVO = formattedLanguage != null ? LanguageVO(formattedLanguage) : null;
+      final audioFormatVO = AudioFormatVO(formattedAudioFormat);
+      
+      // Create request model
       final request = SpeechRequestModel.withDefaults(
         text: textVO,
         service: selectedService,
@@ -71,8 +155,13 @@ class SpeechSynthesisNotifier extends StateNotifier<SpeechSynthesisState> {
       
       AppLogger.debug('Calling repository to convert text to speech', tag: 'SpeechSynthesis');
       
-      // Call repository
-      final result = await _repository.convertTextToSpeech(request);
+      // Call repository with service-specific parameters
+      // Speed and instructions are passed separately since they're not in domain model
+      final result = await _repository.convertTextToSpeech(
+        request,
+        speed: formattedSpeed,
+        instructions: formattedInstructions,
+      );
       
       if (result.isSuccess) {
         final value = result.success;

@@ -31,7 +31,10 @@
 
   <title>tts_flutter_test</title>
   <link rel="manifest" href="manifest.json">
-  <script src="tts_script_channel.js"></script>
+  <!-- [LEGACY] Old TTS script channel - commented out for rollback -->
+  <!-- The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs -->
+  <!-- To rollback: uncomment the line below -->
+  <!-- <script src="tts_script_channel.js"></script> -->
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -42,9 +42,17 @@ class MockISpeechSynthesisRepository extends _i1.Mock
 
   @override
   _i3.Future<_i4.Result<_i5.SpeechResponseModel, _i6.SpeechSynthesisError>>
-  convertTextToSpeech(_i7.SpeechRequestModel? request) =>
+  convertTextToSpeech(
+    _i7.SpeechRequestModel request, {
+    double? speed,
+    String? instructions,
+  }) =>
       (super.noSuchMethod(
-            Invocation.method(#convertTextToSpeech, [request]),
+            Invocation.method(
+              #convertTextToSpeech,
+              [request],
+              {#speed: speed, #instructions: instructions},
+            ),
             returnValue:
                 _i3.Future<
                   _i4.Result<_i5.SpeechResponseModel, _i6.SpeechSynthesisError>
@@ -54,7 +62,14 @@ class MockISpeechSynthesisRepository extends _i1.Mock
                       _i5.SpeechResponseModel,
                       _i6.SpeechSynthesisError
                     >
-                  >(this, Invocation.method(#convertTextToSpeech, [request])),
+                  >(
+                    this,
+                    Invocation.method(
+                      #convertTextToSpeech,
+                      [request],
+                      {#speed: speed, #instructions: instructions},
+                    ),
+                  ),
                 ),
           )
           as _i3.Future<

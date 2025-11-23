@@ -4,8 +4,6 @@
       "root": "backend/python",
       "pythonVersion": "3.12"
     }
-  ],
-  "venvPath": "backend/python",
-  "venv": "venv"
+  ]
 }
 

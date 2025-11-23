@@ -9,6 +9,7 @@ import 'package:tts_flutter_test/speech_synthesis/presentation/widgets/text_inpu
 import 'package:tts_flutter_test/speech_synthesis/presentation/widgets/voice_selector_widget.dart';
 import 'package:tts_flutter_test/core/utils/data_state.dart';
 import 'package:tts_flutter_test/audio_playback/presentation/widgets/audio_player_widget.dart';
+import 'package:tts_flutter_test/speech_synthesis/domain/entities/tts_service_model.dart';
 
 /// Main page for speech synthesis
 class SpeechSynthesisPage extends ConsumerWidget {
@@ -47,27 +48,18 @@ class SpeechSynthesisPage extends ConsumerWidget {
             const LanguageSelectorWidget(),
             const SizedBox(height: 16),
             
-            // Audio format selector
-            DropdownButtonFormField<String>(
-              key: ValueKey('audio_format_$selectedAudioFormat'),
-              initialValue: selectedAudioFormat,
-              decoration: const InputDecoration(
-                labelText: 'Audio Format',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'mp3', child: Text('MP3')),
-                DropdownMenuItem(value: 'wav', child: Text('WAV')),
-                DropdownMenuItem(value: 'ogg', child: Text('OGG')),
-                DropdownMenuItem(value: 'aac', child: Text('AAC')),
-                DropdownMenuItem(value: 'flac', child: Text('FLAC')),
-              ],
-              onChanged: (format) {
-                if (format != null) {
-                  ref.read(selectedAudioFormatProvider.notifier).state = format;
-                }
-              },
-            ),
+            // Audio format selector (service-aware)
+            _buildAudioFormatSelector(ref, state.selectedService),
+            const SizedBox(height: 16),
+            
+            // Service-specific fields (OpenAI only)
+            if (state.selectedService == TTSServiceModel.openai) ...[
+              _buildSpeedSelector(context, ref),
+              const SizedBox(height: 16),
+              _buildInstructionsField(ref),
+              const SizedBox(height: 16),
+            ],
+            
             const SizedBox(height: 24),
             
             // Synthesize button
@@ -75,12 +67,18 @@ class SpeechSynthesisPage extends ConsumerWidget {
               onPressed: state.isLoading || textInput.trim().isEmpty
                   ? null
                   : () {
+                      // Get service-specific parameters
+                      final speed = ref.read(speedProvider);
+                      final instructions = ref.read(instructionsProvider);
+                      
                       ref.read(speechSynthesisNotifierProvider.notifier).convertTextToSpeech(
                         text: textInput,
                         service: state.selectedService,
                         voice: selectedVoice,
                         language: selectedLanguage,
                         audioFormat: selectedAudioFormat,
+                        speed: speed,
+                        instructions: instructions,
                       );
                     },
               icon: const Icon(Icons.volume_up),
@@ -193,6 +191,163 @@ class SpeechSynthesisPage extends ConsumerWidget {
   String _getErrorMessage(Object? error) {
     if (error == null) return 'Unknown error';
     return error.toString();
+  }
+  
+  /// Builds audio format selector based on selected service
+  Widget _buildAudioFormatSelector(WidgetRef ref, TTSServiceModel service) {
+    final selectedAudioFormat = ref.watch(selectedAudioFormatProvider);
+    
+    // Service-specific audio formats
+    final List<Map<String, String>> formats;
+    
+    switch (service) {
+      case TTSServiceModel.openai:
+        formats = [
+          {'value': 'mp3', 'label': 'MP3'},
+          {'value': 'opus', 'label': 'Opus'},
+          {'value': 'aac', 'label': 'AAC'},
+          {'value': 'flac', 'label': 'FLAC'},
+          {'value': 'wav', 'label': 'WAV'},
+          {'value': 'pcm', 'label': 'PCM'},
+        ];
+        break;
+      case TTSServiceModel.gemini:
+        formats = [
+          {'value': 'mp3', 'label': 'MP3'},
+          {'value': 'wav', 'label': 'WAV'},
+          {'value': 'ogg', 'label': 'OGG'},
+          {'value': 'opus', 'label': 'Opus'},
+        ];
+        break;
+      case TTSServiceModel.polly:
+        formats = [
+          {'value': 'mp3', 'label': 'MP3'},
+          {'value': 'wav', 'label': 'WAV'},
+        ];
+        break;
+    }
+    
+    final currentValue = formats.any((f) => f['value'] == selectedAudioFormat) 
+        ? selectedAudioFormat 
+        : formats.first['value'];
+    
+    return DropdownButtonFormField<String>(
+      key: ValueKey('audio_format_${service.name}_$selectedAudioFormat'),
+      initialValue: currentValue,
+      decoration: const InputDecoration(
+        labelText: 'Audio Format',
+        border: OutlineInputBorder(),
+      ),
+      items: formats.map((format) {
+        return DropdownMenuItem<String>(
+          value: format['value'],
+          child: Text(format['label']!),
+        );
+      }).toList(),
+      onChanged: (format) {
+        if (format != null) {
+          ref.read(selectedAudioFormatProvider.notifier).state = format;
+        }
+      },
+    );
+  }
+  
+  /// Builds speed selector for OpenAI (0.25 to 4.0)
+  Widget _buildSpeedSelector(BuildContext context, WidgetRef ref) {
+    final speed = ref.watch(speedProvider);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Speed: ${speed.toStringAsFixed(2)}x',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        Slider(
+          value: speed,
+          min: 0.25,
+          max: 4.0,
+          divisions: 15, // 0.25 increments
+          label: speed.toStringAsFixed(2),
+          onChanged: (value) {
+            ref.read(speedProvider.notifier).state = value;
+          },
+        ),
+        Text(
+          'Range: 0.25x to 4.0x (default: 1.0x)',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+  
+  /// Builds instructions text field for OpenAI
+  Widget _buildInstructionsField(WidgetRef ref) {
+    return _InstructionsTextField(key: const ValueKey('instructions_field'));
+  }
+}
+
+/// Stateful widget for instructions text field to properly manage controller
+class _InstructionsTextField extends ConsumerStatefulWidget {
+  const _InstructionsTextField({super.key});
+  
+  @override
+  ConsumerState<_InstructionsTextField> createState() => _InstructionsTextFieldState();
+}
+
+class _InstructionsTextFieldState extends ConsumerState<_InstructionsTextField> {
+  late TextEditingController _controller;
+  bool _isUpdatingFromProvider = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+  
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    final instructions = ref.watch(instructionsProvider);
+    final instructionsText = instructions ?? '';
+    
+    // Update controller if text changed externally (but not from user typing)
+    if (_controller.text != instructionsText && !_isUpdatingFromProvider) {
+      _isUpdatingFromProvider = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _controller.text = instructionsText;
+          _controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: instructionsText.length),
+          );
+          _isUpdatingFromProvider = false;
+        }
+      });
+    }
+    
+    return TextField(
+      controller: _controller,
+      maxLines: 3,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.left,
+      decoration: const InputDecoration(
+        labelText: 'Instructions (Optional)',
+        hintText: 'e.g., "Speak professionally" or "Pause after each sentence"',
+        border: OutlineInputBorder(),
+        helperText: 'OpenAI-specific: Produces subtle tone/style adjustments. For stronger emotional expression, try different voices or adjust speed. Note: Instructions have limited effectiveness for dramatic emotions.',
+      ),
+      onChanged: (value) {
+        if (!_isUpdatingFromProvider) {
+          ref.read(instructionsProvider.notifier).state = 
+              value.isEmpty ? null : value;
+        }
+      },
+    );
   }
 }
 

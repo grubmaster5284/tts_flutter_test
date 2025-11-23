@@ -1,3 +1,8 @@
+// [LEGACY] Old TTS platform channel handler - commented out for rollback
+// This channel handler was used for Python script execution via platform channels.
+// The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+// To rollback: uncomment the code below
+/*
 // Method channel handler for TTS script service on web
 // This registers the platform channel handler for com.tts_flutter_test/tts_script
 
@@ -164,4 +169,10 @@
     }
   }, 200);
 })();
+*/
+
+// [NEW] No platform-specific TTS code needed
+// The app now uses pure Dart TTS services that work on all platforms
+// All TTS operations are handled in Dart code via direct HTTP calls to TTS APIs
+// This file can be removed or kept for reference
 

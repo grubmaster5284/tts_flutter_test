@@ -66,6 +66,16 @@ class SpeechRequestDto with _$SpeechRequestDto {
     /// Supported formats: 'mp3', 'wav', 'ogg', etc.
     /// Uses @Default annotation from Freezed to provide a default value
     @Default('mp3') String audioFormat,
+    
+    /// Optional speed parameter for OpenAI TTS (default: 1.0)
+    /// Speed range: 0.25 to 4.0
+    /// Only used by OpenAI TTS service
+    @Default(1.0) double speed,
+    
+    /// Optional instructions parameter for OpenAI TTS
+    /// Provides guidance on how to speak the text
+    /// Only used by OpenAI TTS service
+    String? instructions,
   }) = _SpeechRequestDto;
   
   /// Factory constructor to deserialize from JSON
@@ -123,6 +133,11 @@ class SpeechRequestDto with _$SpeechRequestDto {
       
       // Extract String from AudioFormatVO, defaulting to 'mp3' if null
       audioFormat: model.audioFormat?.value ?? 'mp3',
+      
+      // Speed and instructions are not in domain model yet, use defaults
+      // These are OpenAI-specific parameters
+      speed: 1.0, // Default speed
+      instructions: null, // No instructions by default
     );
   }
 }

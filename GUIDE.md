@@ -21,78 +21,38 @@ This guide contains all the information you need to set up, build, test, and use
 ### Prerequisites
 
 - Flutter SDK (3.9.2 or higher)
-- Python 3 installed on system (`/usr/bin/python3` on macOS)
 - API keys for TTS services (Gemini and/or OpenAI)
 
-### Python Scripts Setup
+### Environment Configuration
 
-The app uses Python scripts directly via platform channels - **no server required**.
+The app uses pure Dart HTTP clients to make direct API calls - **no Python scripts or backend server required**.
 
-#### 1. Install Python Dependencies
+#### 1. Configure API Keys
 
-**Option 1: Use existing virtual environment (recommended)**
-
-If you already have a virtual environment set up:
+Copy the example environment file and add your credentials:
 
 ```bash
-cd backend/python
-source venv/bin/activate
-pip install -r ../../scripts/requirements.txt
+cp .env.example .env
 ```
 
-**Option 2: Create new virtual environment**
+Edit `.env` and add your API keys. See [ENV_SETUP.md](./ENV_SETUP.md) for detailed instructions.
 
-If you don't have a virtual environment:
+**For Google Cloud TTS (Gemini):**
+- Option 1: Add full service account JSON to `.env`:
+  ```env
+  GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+  ```
+- Option 2: Set path to service account key file:
+  ```env
+  GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+  ```
 
-```bash
-cd backend/python
-python3 -m venv venv
-source venv/bin/activate
-pip install -r ../../scripts/requirements.txt
-```
-
-**Option 3: Install globally (if no venv)**
-
-```bash
-pip3 install --user -r scripts/requirements.txt
-```
-
-**Required packages:**
-- `httpx` - For Gemini API calls
-- `openai` - For OpenAI API calls
-
-**Note**: The app will automatically detect and use the virtual environment Python at `backend/python/venv/bin/python3` if it exists. Otherwise, it will fall back to system Python.
-
-#### 2. Configure API Keys
-
-Create a `.env` file in `backend/python/`:
-
-```bash
-cd backend/python
-touch .env
-```
-
-Add your API keys:
-```
-GOOGLE_API_KEY=your_google_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
+**For OpenAI TTS:**
+```env
+OPENAI_API_KEY=sk-your-openai-api-key-here
 ```
 
 **Note**: You need at least one API key to use the corresponding service.
-
-#### 3. Verify Scripts Work
-
-Test the scripts manually:
-
-```bash
-# Test Gemini script
-echo '{"text":"Hello world","service":"gemini","voice":"Kore","language":"en-US","audio_format":"mp3"}' | python3 scripts/tts_gemini.py
-
-# Test OpenAI script
-echo '{"text":"Hello world","service":"openai","voice":"alloy","audio_format":"mp3"}' | python3 scripts/tts_openai.py
-```
-
-Both should output JSON with `audio_data` (base64) and `success: true`.
 
 ### Flutter Setup
 
@@ -101,44 +61,52 @@ flutter pub get
 flutter run
 ```
 
+The app will automatically load environment variables from `.env` on startup.
+
 ---
 
 ## Architecture Overview
 
-### Script-Based Architecture
+### Pure Dart HTTP Architecture
 
-The app has been refactored to call Python scripts directly from Flutter instead of requiring a running server. This eliminates the dependency on a separate backend process.
+The app uses **pure Dart HTTP clients** to make direct API calls to TTS services. This eliminates the need for Python scripts, platform channels, or a backend server. All platforms (web, desktop, mobile) use the same Dart implementation.
 
 **Flow:**
 ```
 Flutter App
     ↓
-Platform Channel (macOS)
+Repository (checks cache)
     ↓
-Python Script (tts_gemini.py or tts_openai.py)
+TTS Service Factory (creates appropriate service)
     ↓
-TTS API (Gemini/OpenAI)
+Pure Dart TTS Service (GeminiTtsRemoteService / OpenAITtsRemoteService)
     ↓
-Base64 Audio Data
+Direct HTTP Call to TTS API (Google Cloud / OpenAI)
     ↓
-Flutter (saves to file)
+Audio Response (base64)
+    ↓
+Flutter (saves to file, caches response)
     ↓
 Audio Player (plays file)
 ```
 
 ### Key Components
 
-- **Scripts**: `scripts/tts_gemini.py`, `scripts/tts_openai.py`
-- **Platform Channel**: macOS `AppDelegate.swift` executes Python scripts
-- **Flutter Service**: `SpeechSynthesisScriptService` calls platform channel
-- **Repository**: Saves audio to file and returns file path
+- **TtsServiceFactory**: Factory pattern for creating appropriate TTS service instances
+- **GeminiTtsRemoteService**: Pure Dart service for Google Cloud Text-to-Speech API
+- **OpenAITtsRemoteService**: Pure Dart service for OpenAI TTS API
+- **PollyTtsRemoteService**: Placeholder for future AWS Polly implementation
+- **Repository**: Coordinates services, handles caching, and manages file storage
+- **Local Service**: Handles caching in SharedPreferences to avoid redundant API calls
 
 ### Benefits
 
-1. ✅ **No Server Required** - No need to run a separate backend process
-2. ✅ **Simpler Deployment** - Everything in one app
-3. ✅ **Faster Startup** - No server initialization
-4. ✅ **Better Integration** - Direct communication via platform channels
+1. ✅ **No External Dependencies** - No Python, no scripts, no backend server
+2. ✅ **Cross-Platform Consistency** - Same code works on all platforms (web, desktop, mobile)
+3. ✅ **Simpler Deployment** - Everything in one Flutter app
+4. ✅ **Better Performance** - Direct HTTP calls, no intermediate layers
+5. ✅ **Easier Maintenance** - Pure Dart codebase, easier to test and debug
+6. ✅ **Web Support** - Works natively on web without platform channel limitations
 
 ---
 
@@ -228,9 +196,8 @@ flutter run
 
 ### Pre-Testing Setup
 
-- [ ] Python scripts set up
-- [ ] Python dependencies installed (httpx, openai)
-- [ ] API keys configured in `backend/python/.env`
+- [ ] Environment variables configured in `.env` file
+- [ ] Google Cloud service account JSON or OpenAI API key added
 - [ ] Flutter app launched and running
 - [ ] Internet connection available
 
@@ -257,8 +224,8 @@ flutter run
 - [ ] Audio format selection works
 - [ ] Empty text validation prevents submission
 - [ ] Long text (1000+ chars) handled correctly
-- [ ] Script execution failure shows error
-- [ ] Invalid service config shows error
+- [ ] API call failure shows appropriate error
+- [ ] Invalid credentials show error
 - [ ] Generated audio plays in player
 
 #### Media Keys Testing (Desktop Only)
@@ -283,50 +250,20 @@ flutter run
 
 ### Test Commands
 
-**Test Python Scripts:**
-```bash
-# Test Gemini script
-echo '{"text":"test","service":"gemini","voice":"Kore","language":"en-US","audio_format":"mp3"}' | python3 scripts/tts_gemini.py
-
-# Test OpenAI script
-echo '{"text":"test","service":"openai","voice":"alloy","audio_format":"mp3"}' | python3 scripts/tts_openai.py
-```
-
 **Sample Audio URL for Testing:**
 - MP3: `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3`
+
+**Note**: The app now uses pure Dart HTTP clients, so there are no separate Python scripts to test. All TTS functionality is tested through the Flutter app UI.
 
 ---
 
 ## Google Cloud Setup
 
-The Gemini TTS service uses Google Cloud Text-to-Speech API, which requires OAuth2 authentication.
+The Gemini TTS service uses Google Cloud Text-to-Speech API, which requires OAuth2 authentication via service account credentials.
 
-### ⚠️ Important: macOS App Sandbox
+### Service Account Setup (Recommended)
 
-**If you're running the Flutter app (not just the backend server)**, the app runs in a sandbox which may block access to credentials in your home directory (`~/.config/gcloud/`). 
-
-**For Flutter app usage, we recommend using a Service Account key file** (see below) placed in the project directory, as it's more reliable with sandbox restrictions.
-
-### Quick Setup (For Backend Server Only)
-
-If you're only using the backend server (not the Flutter app), you can use Application Default Credentials:
-
-```bash
-gcloud auth application-default login
-```
-
-This command will:
-1. Open a browser window for you to sign in with your Google account
-2. Store credentials in `~/.config/gcloud/application_default_credentials.json`
-3. Allow the backend server to automatically use these credentials
-
-**Note:** Make sure you have the Google Cloud SDK installed. If not, install it from https://cloud.google.com/sdk/docs/install
-
-**⚠️ For Flutter app:** This method may not work due to sandbox restrictions. Use Service Account setup instead.
-
-### Service Account Setup (Recommended for Flutter App)
-
-**This is the recommended method for Flutter app usage** because it works reliably with macOS app sandbox restrictions.
+**This is the recommended method** for all platforms (web, desktop, mobile).
 
 1. **Create a Service Account:**
    - Go to [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts)
@@ -345,19 +282,24 @@ This command will:
    - Choose "JSON" format
    - Download the key file
 
-4. **Place the Key File in Project Directory:**
+4. **Configure the Key File:**
    
-   **Important:** Place the downloaded JSON key file in one of these locations (the app will automatically find it):
-   - `backend/python/service-account-key.json` ⭐ (recommended)
-   - `service-account-key.json` (project root)
-   - `.gcloud/service-account-key.json` (project root)
+   You have two options:
    
-   The app will automatically detect and use the key file from these locations.
+   **Option 1: Add JSON to `.env` file (Recommended)**
+   - Minify the JSON: `cat service-account-key.json | jq -c .`
+   - Add to `.env`:
+     ```env
+     GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+     ```
    
-   **Alternative:** Set the environment variable before launching the app:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/your/service-account-key.json
-   ```
+   **Option 2: Use File Path**
+   - Place the JSON file in project root or set environment variable:
+     ```env
+     GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+     ```
+   
+   See [ENV_SETUP.md](./ENV_SETUP.md) for detailed configuration instructions.
 
 ### Enable the Text-to-Speech API
 
@@ -367,25 +309,26 @@ This command will:
 
 ### Troubleshooting
 
-**Error: "Your default credentials were not found" or "Google Cloud credentials not found"**
-
-- **For Flutter app:** Use a Service Account key file (see Service Account Setup above). Place the key file in the project directory (`backend/python/service-account-key.json`).
-- **For backend server only:** Run `gcloud auth application-default login`
+**Error: "Google Cloud credentials not found"**
+- Make sure `.env` file exists in project root
+- Verify `GOOGLE_SERVICE_ACCOUNT_JSON` is set in `.env` (minified JSON on single line)
+- Or set `GOOGLE_APPLICATION_CREDENTIALS` to path of service account key file
+- See [ENV_SETUP.md](./ENV_SETUP.md) for detailed troubleshooting
 
 **Error: "API keys are not supported"**
-- Google Cloud TTS requires OAuth2, not API keys. Use Service Account setup (recommended) or Application Default Credentials.
+- Google Cloud TTS requires OAuth2 service account credentials, not API keys
+- Use Service Account setup (see above)
 
 **Error: "The Text-to-Speech API has not been used"**
-- Enable the Text-to-Speech API in Google Cloud Console (see "Enable the Text-to-Speech API" above).
+- Enable the Text-to-Speech API in Google Cloud Console (see "Enable the Text-to-Speech API" above)
 
 **Error: "Permission denied"**
-- Make sure your service account or user account has the "Cloud Text-to-Speech API User" role.
+- Make sure your service account has the "Cloud Text-to-Speech API User" role
 
 **Error persists after setting up credentials:**
-- Make sure the service account key file is in one of the project directories listed above
-- Verify the file is valid JSON and not corrupted
+- Verify the JSON in `.env` is properly escaped and minified
 - Check that the Text-to-Speech API is enabled in your Google Cloud project
-- For sandboxed apps, Application Default Credentials may not work - use Service Account key file instead
+- Restart the app after changing `.env` (hot reload may not pick up changes)
 
 ---
 
@@ -467,38 +410,23 @@ flutter logs | grep "ERROR"
 
 ## Troubleshooting
 
-### Python Script Issues
+### API Configuration Issues
 
-**Error: `SCRIPT_NOT_FOUND`**
-- Ensure scripts are in `scripts/` directory
-- Check script permissions: `chmod +x scripts/*.py`
-- Verify script path in logs
+**Error: `OPENAI_API_KEY` not found**
+- Create `.env` file in project root (copy from `.env.example`)
+- Add `OPENAI_API_KEY=sk-your-key-here` to `.env`
+- Restart the app after changing `.env`
 
-**Error: `GOOGLE_API_KEY` or `OPENAI_API_KEY` not found**
-- Create `.env` file in `backend/python/`
-- Add API keys to `.env`
-- Or set environment variables:
-  ```bash
-  export GOOGLE_API_KEY=your_key
-  export OPENAI_API_KEY=your_key
-  ```
+**Error: `GOOGLE_SERVICE_ACCOUNT_JSON` not found or invalid**
+- Add service account JSON to `.env` file (minified, single line)
+- Or set `GOOGLE_APPLICATION_CREDENTIALS` to path of key file
+- Verify JSON is properly escaped in `.env`
+- See [ENV_SETUP.md](./ENV_SETUP.md) for detailed instructions
 
-**Error: Python execution fails**
-- Ensure Python 3 is installed: `python3 --version`
-- Python should be at `/usr/bin/python3` (default on macOS)
-- Or update `AppDelegate.swift` to use different Python path
-
-**Error: `ModuleNotFoundError: No module named 'openai'`**
-- Install dependencies in virtual environment:
-  ```bash
-  cd backend/python
-  source venv/bin/activate
-  pip install -r ../../scripts/requirements.txt
-  ```
-- Or install globally:
-  ```bash
-  pip3 install --user -r scripts/requirements.txt
-  ```
+**Error: API calls failing**
+- Check internet connection
+- Verify API keys are valid and have proper permissions
+- Check app logs for detailed error messages
 
 ### Build Issues
 
@@ -557,4 +485,5 @@ sudo apt-get install -y \
 - [Flutter Documentation](https://docs.flutter.dev/)
 - [Google Cloud TTS Documentation](https://cloud.google.com/text-to-speech/docs)
 - [OpenAI TTS Documentation](https://platform.openai.com/docs/guides/text-to-speech)
+- [ENV_SETUP.md](./ENV_SETUP.md) - Detailed environment variable configuration guide
 

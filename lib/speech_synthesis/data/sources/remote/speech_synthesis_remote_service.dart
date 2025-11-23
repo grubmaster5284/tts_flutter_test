@@ -1,3 +1,6 @@
+// ignore_for_file: unused_import
+// [LEGACY] Old remote service for Python backend - commented out for rollback
+// The imports below are kept for reference when uncommenting this file
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:result_type/result_type.dart';
@@ -6,7 +9,10 @@ import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_request_dto.d
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_response_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/errors/speech_synthesis_error.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
-
+// This service made HTTP requests to a Python FastAPI backend server.
+// The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+// To rollback: uncomment this entire class
+/*
 /// Remote service for speech synthesis API calls
 /// 
 /// ## What is a Remote Service?
@@ -399,4 +405,5 @@ class SpeechSynthesisRemoteService {
     }
   }
 }
+*/
 

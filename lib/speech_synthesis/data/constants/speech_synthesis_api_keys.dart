@@ -13,88 +13,79 @@
 /// - **Static members**: Can be accessed without creating an instance
 /// - **Namespace**: Groups related constants together
 /// 
-/// ## Backend Architecture:
-/// This app uses a Python backend (FastAPI) that handles TTS API calls:
-/// - **Flutter App** → **Python Backend** (localhost:8000) → **TTS APIs**
+/// ## Architecture:
+/// [NEW] This app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs:
+/// - **Flutter App** → **Pure Dart TTS Services** → **TTS APIs** (Google Cloud, OpenAI, AWS)
 /// 
-/// The backend provides a REST API that:
-/// - Accepts TTS requests from the Flutter app
-/// - Calls TTS APIs (Google Gemini, OpenAI, AWS Polly) server-side
-/// - Returns audio data to the Flutter app
+/// The app makes direct API calls to:
+/// - **Google Cloud TTS**: `https://texttospeech.googleapis.com/v1/text:synthesize`
+/// - **OpenAI TTS**: `https://api.openai.com/v1/audio/speech`
+/// - **AWS Polly**: (future implementation)
 /// 
-/// **Why use a backend?**
-/// - **Security**: API keys are stored server-side, not in the app
-/// - **Flexibility**: Can switch TTS providers without app updates
-/// - **Rate Limiting**: Backend can implement rate limiting
-/// - **Python Libraries**: Easier to use Python TTS libraries
+/// **Benefits of direct API calls:**
+/// - **No Python dependency**: Pure Flutter/Dart codebase
+/// - **Cross-platform**: Works on all Flutter platforms (iOS, Android, Web, Desktop)
+/// - **Better performance**: Direct HTTP calls, no subprocess overhead
+/// - **Easier maintenance**: Single codebase, no process spawning
 /// 
-/// ## URL Structure:
-/// - **Base URL**: `http://localhost:8000` (local development server)
-/// - **Endpoint**: `/api/v1/tts/synthesize` (REST API endpoint)
-/// - **Full URL**: `http://localhost:8000/api/v1/tts/synthesize`
+/// [LEGACY] Old backend architecture (commented out):
+/// - **Base URL**: `http://localhost:8000` (Python FastAPI backend - no longer used)
+/// - **Endpoint**: `/api/v1/tts/synthesize` (REST API endpoint - no longer used)
 /// 
-/// **Note**: For production, change `baseUrl` to the production server URL.
+/// **Note**: The old backend code has been moved to `_legacy/backend/python/` for rollback capability.
 abstract class SpeechSynthesisApiKeys {
-  /// Base URL for the Python backend TTS API
+  // [LEGACY] Old backend constants - kept for reference but no longer used
+  // The app now makes direct API calls to TTS providers (Google Cloud, OpenAI, AWS)
+  
+  /// [LEGACY] Base URL for the Python backend TTS API (no longer used)
   /// 
-  /// **Development**: `http://localhost:8000`
-  /// - Points to local Python backend server
-  /// - Used during development and testing
+  /// **Status**: This constant is kept for reference but is no longer used.
+  /// The app now makes direct HTTP calls to TTS APIs.
   /// 
-  /// **Production**: Should be changed to production server URL
-  /// - Example: `https://api.example.com`
-  /// - Should use HTTPS for security
-  /// 
-  /// **Port 8000**: Default port for Python FastAPI development server
-  /// - Can be changed in backend configuration
-  /// - Must match the port the backend is running on
+  /// **Old Usage**: `http://localhost:8000` (Python FastAPI backend)
+  /// **New Architecture**: Direct API calls to TTS providers
+  @Deprecated('No longer used - app makes direct API calls to TTS providers')
   static const String baseUrl = 'http://localhost:8000';
   
-  /// API endpoint path for TTS synthesis
+  /// [LEGACY] API endpoint path for TTS synthesis (no longer used)
   /// 
-  /// **REST API Convention:**
-  /// - `/api`: API namespace
-  /// - `/v1`: API version (allows for future API versions)
-  /// - `/tts`: TTS service namespace
-  /// - `/synthesize`: Action (synthesize text to speech)
+  /// **Status**: This constant is kept for reference but is no longer used.
+  /// The app now makes direct HTTP calls to TTS APIs.
   /// 
-  /// **HTTP Method**: POST (sends request body with text, voice, etc.)
-  /// 
-  /// **Request Format**: JSON
-  /// ```json
-  /// {
-  ///   "text": "Hello world",
-  ///   "service": "gemini",
-  ///   "voice": "en-US-Standard-A",
-  ///   "language": "en",
-  ///   "audio_format": "mp3"
-  /// }
-  /// ```
-  /// 
-  /// **Response Format**: JSON
-  /// ```json
-  /// {
-  ///   "audio_data": "base64_encoded_audio",
-  ///   "audio_format": "mp3",
-  ///   "duration_ms": 5000,
-  ///   "metadata": "{\"voice\": \"en-US-Standard-A\"}"
-  /// }
-  /// ```
+  /// **Old Usage**: `/api/v1/tts/synthesize` (Python backend endpoint)
+  /// **New Architecture**: Direct API calls to TTS providers
+  @Deprecated('No longer used - app makes direct API calls to TTS providers')
   static const String synthesizeEndpoint = '/api/v1/tts/synthesize';
   
-  /// Gets the full URL for the synthesize endpoint
+  /// [LEGACY] Gets the full URL for the synthesize endpoint (no longer used)
   /// 
-  /// **Getter**: This is a computed property that combines `baseUrl` and `synthesizeEndpoint`
-  /// to create the complete URL for TTS synthesis requests.
+  /// **Status**: This getter is kept for reference but is no longer used.
+  /// The app now makes direct HTTP calls to TTS APIs.
   /// 
-  /// **Returns:**
-  /// - `String`: Full URL (e.g., `http://localhost:8000/api/v1/tts/synthesize`)
-  /// 
-  /// **Usage:**
-  /// ```dart
-  /// final url = SpeechSynthesisApiKeys.synthesizeUrl;
-  /// // Use url in HTTP request
-  /// ```
+  /// **Old Usage**: `http://localhost:8000/api/v1/tts/synthesize` (Python backend)
+  /// **New Architecture**: Direct API calls to TTS providers
+  @Deprecated('No longer used - app makes direct API calls to TTS providers')
   static String get synthesizeUrl => '$baseUrl$synthesizeEndpoint';
+  
+  // [NEW] Direct TTS API endpoints (used by pure Dart services)
+  
+  /// Google Cloud Text-to-Speech API endpoint
+  /// 
+  /// **URL**: `https://texttospeech.googleapis.com/v1/text:synthesize`
+  /// **Used by**: `GeminiTtsRemoteService`
+  static const String googleCloudTtsUrl = 'https://texttospeech.googleapis.com/v1/text:synthesize';
+  
+  /// OpenAI Text-to-Speech API endpoint
+  /// 
+  /// **URL**: `https://api.openai.com/v1/audio/speech`
+  /// **Used by**: `OpenAITtsRemoteService`
+  static const String openaiTtsUrl = 'https://api.openai.com/v1/audio/speech';
+  
+  /// AWS Polly Text-to-Speech API endpoint (future implementation)
+  /// 
+  /// **URL**: `https://polly.{region}.amazonaws.com/v1/speech`
+  /// **Used by**: `PollyTtsRemoteService` (future)
+  /// **Note**: Region will be configurable
+  static String getPollyTtsUrl(String region) => 'https://polly.$region.amazonaws.com/v1/speech';
 }
 

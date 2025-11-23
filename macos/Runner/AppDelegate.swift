@@ -4,18 +4,26 @@ import FlutterMacOS
 @main
 class AppDelegate: FlutterAppDelegate {
   var volumeKeyChannel: FlutterMethodChannel?
-  var ttsChannel: FlutterMethodChannel?
+  // [LEGACY] Old TTS channel - commented out for rollback
+  // var ttsChannel: FlutterMethodChannel?
   private var volumeKeyMonitor: Any?
   
   override func applicationDidFinishLaunching(_ notification: Notification) {
     super.applicationDidFinishLaunching(notification)
   }
   
-  func setChannels(volumeKey: FlutterMethodChannel, tts: FlutterMethodChannel) {
+  // [NEW] Updated to make TTS channel optional (no longer used)
+  func setChannels(volumeKey: FlutterMethodChannel, tts: FlutterMethodChannel?) {
     self.volumeKeyChannel = volumeKey
-    self.ttsChannel = tts
+    // [LEGACY] Old TTS channel - commented out for rollback
+    // self.ttsChannel = tts
   }
   
+  // [LEGACY] Old Python script execution method - commented out for rollback
+  // This method executed Python TTS scripts via platform channels.
+  // The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+  // To rollback: uncomment this method and related methods (findPythonExecutable, findProjectRoot)
+  /*
   func executeTTSScript(call: FlutterMethodCall, result: @escaping FlutterResult) {
     guard let args = call.arguments as? [String: Any],
           let service = args["service"] as? String,
@@ -245,6 +253,7 @@ class AppDelegate: FlutterAppDelegate {
       result(FlutterError(code: "EXECUTION_ERROR", message: "Failed to execute script: \(error.localizedDescription)", details: nil))
     }
   }
+  */
   
   func startVolumeKeyMonitoring() {
     // Use NSEvent to monitor special keys
@@ -292,37 +301,14 @@ class AppDelegate: FlutterAppDelegate {
     }
   }
   
+  // [LEGACY] Old Python executable finder - commented out for rollback
+  // This method found Python 3 executables that work in App Sandbox.
+  // To rollback: uncomment this method
+  /*
   /// Find Python 3 executable that works in App Sandbox
   /// Avoids /usr/bin/python3 wrapper which uses xcrun (blocked by sandbox)
   private func findPythonExecutable() -> String? {
     let fileManager = FileManager.default
-    
-    // First, try to find virtual environment Python (has dependencies installed)
-    // Try multiple paths since sandboxed apps have different home directories
-    var venvPaths: [String] = []
-    
-    // 1. Try from found project root (could be container or actual)
-    if let projectRoot = findProjectRoot() {
-      venvPaths.append((projectRoot as NSString).appendingPathComponent("backend/python/venv/bin/python3"))
-    }
-    
-    // 2. Try actual home directory (not container) - use ProcessInfo to get real home
-    if let realHome = ProcessInfo.processInfo.environment["HOME"] {
-      let actualProjectPath = (realHome as NSString).appendingPathComponent("Downloads/Projects/Work/tts_flutter_test")
-      venvPaths.append((actualProjectPath as NSString).appendingPathComponent("backend/python/venv/bin/python3"))
-    }
-    
-    // 3. Try container home directory (NSHomeDirectory in sandbox)
-    let containerHome = NSHomeDirectory()
-    let containerProjectPath = (containerHome as NSString).appendingPathComponent("Downloads/Projects/Work/tts_flutter_test")
-    venvPaths.append((containerProjectPath as NSString).appendingPathComponent("backend/python/venv/bin/python3"))
-    
-    // Check each venv path
-    for venvPython in venvPaths {
-      if fileManager.fileExists(atPath: venvPython) && fileManager.isExecutableFile(atPath: venvPython) {
-        return venvPython
-      }
-    }
     
     // Try common Python 3 paths that don't use xcrun wrapper
     // Priority order: Command Line Tools Python (most reliable), then others
@@ -371,7 +357,12 @@ class AppDelegate: FlutterAppDelegate {
     
     return nil
   }
+  */
   
+  // [LEGACY] Old project root finder - commented out for rollback
+  // This method found the project root directory for Python scripts.
+  // To rollback: uncomment this method
+  /*
   /// Find project root directory (contains backend/python/config.py)
   private func findProjectRoot() -> String? {
     // Try multiple approaches to find project root
@@ -401,6 +392,7 @@ class AppDelegate: FlutterAppDelegate {
     
     return nil
   }
+  */
   
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true

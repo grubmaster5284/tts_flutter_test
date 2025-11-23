@@ -41,6 +41,11 @@ class MainFlutterWindow: NSWindow {
       }
     }
     
+    // [LEGACY] Old TTS platform channel - commented out for rollback
+    // This channel handler was used for Python script execution via platform channels.
+    // The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+    // To rollback: uncomment the code below
+    /*
     // Set up method channel for TTS Python scripts
     let ttsChannel = FlutterMethodChannel(
       name: "com.tts_flutter_test/tts_script",
@@ -57,11 +62,16 @@ class MainFlutterWindow: NSWindow {
         result(FlutterMethodNotImplemented)
       }
     }
+    */
     
-    // Store channels in AppDelegate
-    appDelegate.setChannels(volumeKey: volumeKeyChannel, tts: ttsChannel)
+    // [NEW] No TTS platform channel needed
+    // The app now uses pure Dart TTS services that work on all platforms
+    // All TTS operations are handled in Dart code via direct HTTP calls to TTS APIs
+    
+    // Store volume key channel in AppDelegate (volume keys are still used)
+    appDelegate.setChannels(volumeKey: volumeKeyChannel, tts: nil)
     
     print("Method channels set up successfully")
-    print("TTS Channel name: com.tts_flutter_test/tts_script")
+    // [LEGACY] TTS Channel name: com.tts_flutter_test/tts_script (no longer used)
   }
 }

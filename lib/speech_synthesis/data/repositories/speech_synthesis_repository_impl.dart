@@ -6,8 +6,12 @@ import 'package:result_type/result_type.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_request_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_response_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_local_service.dart';
-import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart';
-import 'package:tts_flutter_test/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart';
+// [LEGACY] Old script service - commented out for rollback
+// import 'package:tts_flutter_test/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart';
+// [LEGACY] Old remote service - commented out for rollback
+// import 'package:tts_flutter_test/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart';
+// [NEW] New pure Dart TTS services
+import 'package:tts_flutter_test/speech_synthesis/data/sources/remote/tts_service_factory.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/speech_request_model.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/speech_response_model.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/entities/tts_service_model.dart';
@@ -32,8 +36,10 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 /// - **Implementation** (SpeechSynthesisRepositoryImpl): Defined in Data layer - implements the contract
 /// 
 /// ## This Repository Coordinates:
-/// - **SpeechSynthesisScriptService**: Executes Python scripts via platform channels to call TTS APIs (desktop/mobile)
-/// - **SpeechSynthesisRemoteService**: Makes HTTP requests to backend API for TTS synthesis (web)
+/// - **[NEW] TtsServiceFactory**: Creates appropriate pure Dart TTS service (Gemini, OpenAI, Polly)
+/// - **[NEW] Pure Dart TTS Services**: Make direct HTTP calls to TTS APIs (all platforms)
+/// - **[LEGACY] SpeechSynthesisScriptService**: Executes Python scripts via platform channels (commented out)
+/// - **[LEGACY] SpeechSynthesisRemoteService**: Makes HTTP requests to backend API (commented out)
 /// - **SpeechSynthesisLocalService**: Handles local caching in SharedPreferences to avoid redundant API calls
 /// 
 /// ## Responsibilities:
@@ -51,7 +57,9 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 ///     ↓
 /// Check Cache → If found, return cached response
 ///     ↓ (if not cached)
-/// Script Service (executes Python script)
+/// TTS Service Factory (creates appropriate service)
+///     ↓
+/// Pure Dart TTS Service (direct HTTP call to TTS API)
 ///     ↓
 /// Repository (saves to cache, converts to domain model)
 ///     ↓
@@ -60,23 +68,32 @@ import 'package:tts_flutter_test/core/utils/logger.dart';
 /// 
 /// This is part of the Data layer in clean architecture.
 class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
-  /// Service for executing Python TTS scripts via platform channels
-  /// 
-  /// This service handles communication with native platform code (Android/iOS/macOS)
-  /// to execute Python scripts that perform text-to-speech synthesis using various
-  /// TTS providers (Google Gemini, OpenAI, AWS Polly).
-  /// 
-  /// **Platform Support**: Used on desktop and mobile platforms (not web)
-  final SpeechSynthesisScriptService? _scriptService;
+  // [LEGACY] Old script service - commented out for rollback
+  // /// Service for executing Python TTS scripts via platform channels
+  // /// 
+  // /// This service handles communication with native platform code (Android/iOS/macOS)
+  // /// to execute Python scripts that perform text-to-speech synthesis using various
+  // /// TTS providers (Google Gemini, OpenAI, AWS Polly).
+  // /// 
+  // /// **Platform Support**: Used on desktop and mobile platforms (not web)
+  // final SpeechSynthesisScriptService? _scriptService;
   
-  /// Service for making HTTP requests to backend API
+  // [LEGACY] Old remote service - commented out for rollback
+  // /// Service for making HTTP requests to backend API
+  // /// 
+  // /// This service handles communication with a Python backend server over HTTP
+  // /// to perform text-to-speech synthesis. It's used on web platform where
+  // /// platform channels are not available.
+  // /// 
+  // /// **Platform Support**: Used on web platform
+  // final SpeechSynthesisRemoteService? _remoteService;
+  
+  // [NEW] TTS Service Factory - creates appropriate pure Dart TTS service
+  /// Factory for creating TTS service instances
   /// 
-  /// This service handles communication with a Python backend server over HTTP
-  /// to perform text-to-speech synthesis. It's used on web platform where
-  /// platform channels are not available.
-  /// 
-  /// **Platform Support**: Used on web platform
-  final SpeechSynthesisRemoteService? _remoteService;
+  /// This factory creates the appropriate pure Dart TTS service (Gemini, OpenAI, Polly)
+  /// based on the service type. All platforms use the same Dart services.
+  final TtsServiceFactory _serviceFactory;
   
   /// Service for local caching of TTS responses
   /// 
@@ -90,18 +107,22 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
   /// **Dependency Injection**: Services are injected via constructor, making the
   /// repository testable (can inject mock services) and following SOLID principles.
   /// 
-  /// **Platform Detection**: The repository automatically selects the appropriate
-  /// service based on the platform (web uses remote service, others use script service).
+  /// **Platform Support**: All platforms (web, desktop, mobile) use the same pure Dart services.
   /// 
   /// **Parameters:**
-  /// - `_scriptService`: Handles Python script execution via platform channels (desktop/mobile)
-  /// - `_remoteService`: Handles HTTP requests to backend API (web)
+  /// - `_serviceFactory`: Factory for creating pure Dart TTS services (Gemini, OpenAI, Polly)
   /// - `_localService`: Handles local caching in SharedPreferences
   SpeechSynthesisRepositoryImpl(
-    this._scriptService,
-    this._remoteService,
+    this._serviceFactory,
     this._localService,
   );
+  
+  // [LEGACY] Old constructor - commented out for rollback
+  // SpeechSynthesisRepositoryImpl(
+  //   this._scriptService,
+  //   this._remoteService,
+  //   this._localService,
+  // );
   
   /// Converts text to speech using the specified TTS service
   /// 
@@ -131,8 +152,10 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
   /// This approach makes error handling explicit and type-safe.
   @override
   Future<Result<SpeechResponseModel, SpeechSynthesisError>> convertTextToSpeech(
-    SpeechRequestModel request,
-  ) async {
+    SpeechRequestModel request, {
+    double? speed,
+    String? instructions,
+  }) async {
     // Step 1: Generate cache key from request parameters
     // The cache key is a hash of text + service + voice + language + format
     // This ensures we can retrieve cached responses for identical requests
@@ -154,18 +177,34 @@ class SpeechSynthesisRepositoryImpl implements ISpeechSynthesisRepository {
       return Success(cachedResponse.toDomain());
     }
     
-    // Step 3: Convert domain model to DTO
+    // Step 3: Convert domain model to DTO with service-specific parameters
     // DTOs use primitive types (String, int) instead of value objects for serialization
-    final requestDto = SpeechRequestDto.fromDomain(request);
+    // Include service-specific parameters (speed, instructions) that aren't in domain model
+    final requestDto = SpeechRequestDto(
+      text: request.text.value,
+      service: serviceValue,
+      voice: request.voice?.value,
+      language: request.language?.value,
+      audioFormat: request.audioFormat?.value ?? 'mp3',
+      speed: speed ?? 1.0, // Default speed for OpenAI
+      instructions: instructions, // Optional instructions for OpenAI
+    );
     
-    // Step 4: Execute TTS synthesis using platform-appropriate service
-    // - Web: Uses remote service (HTTP requests to backend API)
-    // - Desktop/Mobile: Uses script service (platform channels to Python scripts)
-    final result = kIsWeb
-        ? await _remoteService?.synthesizeSpeech(requestDto) ??
-            Failure(SpeechSynthesisError.unknown('Remote service not available'))
-        : await _scriptService?.synthesizeSpeech(requestDto) ??
-            Failure(SpeechSynthesisError.unknown('Script service not available'));
+    // Step 4: Execute TTS synthesis using pure Dart service via factory
+    // [NEW] All platforms use the same pure Dart services (no platform-specific logic)
+    // The factory creates the appropriate service (Gemini, OpenAI, Polly) based on service type
+    final service = _serviceFactory.createService(request.service);
+    final result = await service.synthesizeSpeech(requestDto);
+    
+    // [LEGACY] Old platform-specific logic - commented out for rollback
+    // // Step 4: Execute TTS synthesis using platform-appropriate service
+    // // - Web: Uses remote service (HTTP requests to backend API)
+    // // - Desktop/Mobile: Uses script service (platform channels to Python scripts)
+    // final result = kIsWeb
+    //     ? await _remoteService?.synthesizeSpeech(requestDto) ??
+    //         Failure(SpeechSynthesisError.unknown('Remote service not available'))
+    //     : await _scriptService?.synthesizeSpeech(requestDto) ??
+    //         Failure(SpeechSynthesisError.unknown('Script service not available'));
     
     // Step 5: Process successful response
     if (result.isSuccess) {

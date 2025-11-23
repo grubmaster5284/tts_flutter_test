@@ -45,6 +45,7 @@ class _TextInputFieldWidgetState extends ConsumerState<TextInputFieldWidget> {
     return TextField(
       controller: _controller,
       maxLines: 5,
+      textDirection: TextDirection.ltr,
       decoration: const InputDecoration(
         labelText: 'Text to Synthesize',
         hintText: 'Enter text to convert to speech...',

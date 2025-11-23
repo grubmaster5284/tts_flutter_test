@@ -1,3 +1,6 @@
+// ignore_for_file: unused_import
+// [LEGACY] Old Python script service - commented out for rollback
+// The imports below are kept for reference when uncommenting this file
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:result_type/result_type.dart';
@@ -5,7 +8,10 @@ import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_request_dto.d
 import 'package:tts_flutter_test/speech_synthesis/data/dtos/speech_response_dto.dart';
 import 'package:tts_flutter_test/speech_synthesis/domain/errors/speech_synthesis_error.dart';
 import 'package:tts_flutter_test/core/utils/logger.dart';
-
+// This service executed Python TTS scripts via platform channels.
+// The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+// To rollback: uncomment this entire class
+/*
 /// Service for executing Python TTS scripts via platform channels
 /// 
 /// ## What is a Platform Channel?
@@ -377,4 +383,5 @@ class SpeechSynthesisScriptService {
     return message.substring(firstBrace, lastBrace + 1);
   }
 }
+*/
 

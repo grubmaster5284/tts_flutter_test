@@ -14,6 +14,8 @@ _$SpeechRequestDtoImpl _$$SpeechRequestDtoImplFromJson(
   voice: json['voice'] as String?,
   language: json['language'] as String?,
   audioFormat: json['audioFormat'] as String? ?? 'mp3',
+  speed: (json['speed'] as num?)?.toDouble() ?? 1.0,
+  instructions: json['instructions'] as String?,
 );
 
 Map<String, dynamic> _$$SpeechRequestDtoImplToJson(
@@ -24,4 +26,6 @@ Map<String, dynamic> _$$SpeechRequestDtoImplToJson(
   'voice': instance.voice,
   'language': instance.language,
   'audioFormat': instance.audioFormat,
+  'speed': instance.speed,
+  'instructions': instance.instructions,
 };

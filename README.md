@@ -12,13 +12,13 @@ A Flutter application for Text-to-Speech synthesis with support for multiple TTS
 
 ## Architecture
 
-The app uses Python scripts directly via platform channels - **no server required**. See [GUIDE.md](./GUIDE.md#architecture-overview) for details.
+The app uses **pure Dart HTTP clients** to make direct API calls to TTS services - **no Python scripts or backend server required**. All platforms (web, desktop, mobile) use the same Dart implementation. See [GUIDE.md](./GUIDE.md#architecture-overview) for details.
 
 ## Quick Start
 
-1. **Set up Python scripts** (see [GUIDE.md](./GUIDE.md#setup--installation)):
-   - Install Python dependencies
-   - Configure API keys in `backend/python/.env`
+1. **Configure API keys** (see [ENV_SETUP.md](./ENV_SETUP.md)):
+   - Copy `.env.example` to `.env`
+   - Add your Google Cloud service account JSON and/or OpenAI API key
 
 2. **Run the Flutter app**:
    ```bash
@@ -29,6 +29,7 @@ The app uses Python scripts directly via platform channels - **no server require
 ## Documentation
 
 - [GUIDE.md](./GUIDE.md) - Complete guide covering setup, building, testing, and troubleshooting
+- [ENV_SETUP.md](./ENV_SETUP.md) - Environment variables and API key configuration guide
 
 ## Platform Support
 

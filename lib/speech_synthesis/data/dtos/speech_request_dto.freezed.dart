@@ -42,6 +42,16 @@ mixin _$SpeechRequestDto {
   /// Uses @Default annotation from Freezed to provide a default value
   String get audioFormat => throw _privateConstructorUsedError;
 
+  /// Optional speed parameter for OpenAI TTS (default: 1.0)
+  /// Speed range: 0.25 to 4.0
+  /// Only used by OpenAI TTS service
+  double get speed => throw _privateConstructorUsedError;
+
+  /// Optional instructions parameter for OpenAI TTS
+  /// Provides guidance on how to speak the text
+  /// Only used by OpenAI TTS service
+  String? get instructions => throw _privateConstructorUsedError;
+
   /// Serializes this SpeechRequestDto to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -65,6 +75,8 @@ abstract class $SpeechRequestDtoCopyWith<$Res> {
     String? voice,
     String? language,
     String audioFormat,
+    double speed,
+    String? instructions,
   });
 }
 
@@ -88,6 +100,8 @@ class _$SpeechRequestDtoCopyWithImpl<$Res, $Val extends SpeechRequestDto>
     Object? voice = freezed,
     Object? language = freezed,
     Object? audioFormat = null,
+    Object? speed = null,
+    Object? instructions = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -111,6 +125,14 @@ class _$SpeechRequestDtoCopyWithImpl<$Res, $Val extends SpeechRequestDto>
                 ? _value.audioFormat
                 : audioFormat // ignore: cast_nullable_to_non_nullable
                       as String,
+            speed: null == speed
+                ? _value.speed
+                : speed // ignore: cast_nullable_to_non_nullable
+                      as double,
+            instructions: freezed == instructions
+                ? _value.instructions
+                : instructions // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -132,6 +154,8 @@ abstract class _$$SpeechRequestDtoImplCopyWith<$Res>
     String? voice,
     String? language,
     String audioFormat,
+    double speed,
+    String? instructions,
   });
 }
 
@@ -154,6 +178,8 @@ class __$$SpeechRequestDtoImplCopyWithImpl<$Res>
     Object? voice = freezed,
     Object? language = freezed,
     Object? audioFormat = null,
+    Object? speed = null,
+    Object? instructions = freezed,
   }) {
     return _then(
       _$SpeechRequestDtoImpl(
@@ -177,6 +203,14 @@ class __$$SpeechRequestDtoImplCopyWithImpl<$Res>
             ? _value.audioFormat
             : audioFormat // ignore: cast_nullable_to_non_nullable
                   as String,
+        speed: null == speed
+            ? _value.speed
+            : speed // ignore: cast_nullable_to_non_nullable
+                  as double,
+        instructions: freezed == instructions
+            ? _value.instructions
+            : instructions // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -191,6 +225,8 @@ class _$SpeechRequestDtoImpl implements _SpeechRequestDto {
     this.voice,
     this.language,
     this.audioFormat = 'mp3',
+    this.speed = 1.0,
+    this.instructions,
   });
 
   factory _$SpeechRequestDtoImpl.fromJson(Map<String, dynamic> json) =>
@@ -223,9 +259,22 @@ class _$SpeechRequestDtoImpl implements _SpeechRequestDto {
   @JsonKey()
   final String audioFormat;
 
+  /// Optional speed parameter for OpenAI TTS (default: 1.0)
+  /// Speed range: 0.25 to 4.0
+  /// Only used by OpenAI TTS service
+  @override
+  @JsonKey()
+  final double speed;
+
+  /// Optional instructions parameter for OpenAI TTS
+  /// Provides guidance on how to speak the text
+  /// Only used by OpenAI TTS service
+  @override
+  final String? instructions;
+
   @override
   String toString() {
-    return 'SpeechRequestDto(text: $text, service: $service, voice: $voice, language: $language, audioFormat: $audioFormat)';
+    return 'SpeechRequestDto(text: $text, service: $service, voice: $voice, language: $language, audioFormat: $audioFormat, speed: $speed, instructions: $instructions)';
   }
 
   @override
@@ -239,13 +288,24 @@ class _$SpeechRequestDtoImpl implements _SpeechRequestDto {
             (identical(other.language, language) ||
                 other.language == language) &&
             (identical(other.audioFormat, audioFormat) ||
-                other.audioFormat == audioFormat));
+                other.audioFormat == audioFormat) &&
+            (identical(other.speed, speed) || other.speed == speed) &&
+            (identical(other.instructions, instructions) ||
+                other.instructions == instructions));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, text, service, voice, language, audioFormat);
+  int get hashCode => Object.hash(
+    runtimeType,
+    text,
+    service,
+    voice,
+    language,
+    audioFormat,
+    speed,
+    instructions,
+  );
 
   /// Create a copy of SpeechRequestDto
   /// with the given fields replaced by the non-null parameter values.
@@ -271,6 +331,8 @@ abstract class _SpeechRequestDto implements SpeechRequestDto {
     final String? voice,
     final String? language,
     final String audioFormat,
+    final double speed,
+    final String? instructions,
   }) = _$SpeechRequestDtoImpl;
 
   factory _SpeechRequestDto.fromJson(Map<String, dynamic> json) =
@@ -301,6 +363,18 @@ abstract class _SpeechRequestDto implements SpeechRequestDto {
   /// Uses @Default annotation from Freezed to provide a default value
   @override
   String get audioFormat;
+
+  /// Optional speed parameter for OpenAI TTS (default: 1.0)
+  /// Speed range: 0.25 to 4.0
+  /// Only used by OpenAI TTS service
+  @override
+  double get speed;
+
+  /// Optional instructions parameter for OpenAI TTS
+  /// Provides guidance on how to speak the text
+  /// Only used by OpenAI TTS service
+  @override
+  String? get instructions;
 
   /// Create a copy of SpeechRequestDto
   /// with the given fields replaced by the non-null parameter values.

@@ -32,6 +32,11 @@ import UIKit
   }
   
   private func setupMethodChannels(controller: FlutterViewController) {
+    // [LEGACY] Old TTS platform channel - commented out for rollback
+    // This channel handler was used for Python script execution via platform channels.
+    // The app now uses pure Dart TTS services that make direct HTTP calls to TTS APIs.
+    // To rollback: uncomment the code below
+    /*
     // Set up method channel for TTS Python scripts
     let ttsChannel = FlutterMethodChannel(
       name: "com.tts_flutter_test/tts_script",
@@ -56,5 +61,10 @@ import UIKit
     
     print("Method channels set up successfully for iOS")
     print("TTS Channel name: com.tts_flutter_test/tts_script")
+    */
+    
+    // [NEW] No platform-specific TTS code needed
+    // The app now uses pure Dart TTS services that work on all platforms
+    // All TTS operations are handled in Dart code via direct HTTP calls to TTS APIs
   }
 }

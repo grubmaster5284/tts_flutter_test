@@ -6,28 +6,28 @@ This plan implements a clean architecture with clear separation of concerns:
 
 - **Presentation Layer**: Flutter UI (Dart)
 - **Domain Layer**: Business logic and interfaces (Dart)
-- **Data Layer**: TTS service implementations and API clients (Python backend + Dart adapters)
+- **Data Layer**: TTS service implementations and API clients (Pure Dart - no Python dependency)
+
+## Refactoring Strategy: Python to Dart Migration
+
+**Current State (Legacy - Isolated)**: Python scripts and backend are moved to `_legacy/` directory for rollback capability.
+
+**New State**: Pure Dart/Flutter implementation with modular TTS services that make direct HTTP calls to TTS APIs.
+
+**Code Preservation Approach**:
+- **Python Backend**: Moved to `_legacy/backend/` and `_legacy/scripts/` (not deleted, isolated from project)
+- **Flutter Code**: Old code is commented out with `// [LEGACY]` markers, new code added alongside
+- **Platform Channels**: macOS AppDelegate Python execution code is commented out, not deleted
+- This allows easy rollback if needed
 
 ## Project Structure
 
 ```
 tts_flutter_test/
-├── backend/
-│   ├── python/
-│   │   ├── main.py          # FastAPI server
-│   │   ├── config.py        # Configuration and environment variables
-│   │   ├── models/
-│   │   │   ├── request.py   # Request models
-│   │   │   └── response.py  # Response models
-│   │   ├── services/
-│   │   │   ├── base.py      # Base TTS service interface
-│   │   │   ├── gemini.py    # Gemini TTS implementation
-│   │   │   ├── openai.py    # OpenAI TTS implementation
-│   │   │   └── polly.py     # Amazon Polly implementation
-│   │   ├── utils/
-│   │   │   └── errors.py    # Error handling utilities
-│   │   └── requirements.txt
-│   └── README.md
+├── _legacy/                    # [ISOLATED] Legacy Python backend (not used, kept for rollback)
+│   ├── backend/
+│   │   └── python/            # Old Python FastAPI server
+│   └── scripts/                # Old Python TTS scripts
 ├── lib/
 │   ├── audio_playback/
 │   │   ├── application/
@@ -78,9 +78,14 @@ tts_flutter_test/
 │       │   │   └── speech_synthesis_repository_impl.dart
 │       │   └── sources/
 │       │       ├── local/
-│       │       │   └── speech_synthesis_local_service.dart
+│       │       │   ├── speech_synthesis_local_service.dart
+│       │       │   └── speech_synthesis_script_service.dart  # [LEGACY] Commented out
 │       │       └── remote/
-│       │           └── speech_synthesis_remote_service.dart
+│       │           ├── speech_synthesis_remote_service.dart  # [LEGACY] Commented out (old HTTP backend)
+│       │           ├── gemini_tts_remote_service.dart        # [NEW] Gemini TTS API client
+│       │           ├── openai_tts_remote_service.dart        # [NEW] OpenAI TTS API client
+│       │           ├── polly_tts_remote_service.dart         # [NEW] AWS Polly TTS (future)
+│       │           └── tts_service_factory.dart             # [NEW] Service factory
 │       ├── domain/
 │       │   ├── entities/
 │       │   │   ├── speech_request_model.dart
@@ -113,41 +118,54 @@ tts_flutter_test/
 
 ## Implementation Strategy
 
-### 1. Backend Architecture (Python)
+### 1. Legacy Python Backend (Isolated - Not Used)
 
-**Configuration** (`backend/python/config.py`):
-- Environment variable management
-- API keys and service configuration
-- Settings validation
+**Status**: Moved to `_legacy/backend/` and `_legacy/scripts/` directories. Code is preserved but not used by the application. This allows for rollback if needed.
 
-**Models** (`backend/python/models/`):
-- `request.py`: Pydantic models for request validation (TTSRequest)
-- `response.py`: Pydantic models for response formatting (TTSResponse, ErrorResponse)
+**What Was Moved**:
+- `backend/python/` → `_legacy/backend/python/`
+- `scripts/` → `_legacy/scripts/`
+- Python execution code in `macos/Runner/AppDelegate.swift` is commented out with `// [LEGACY]` markers
 
-**Base Service Interface** (`backend/python/services/base.py`):
-- Abstract base class defining `synthesize_speech(text, voice, language)` method
-- All TTS services inherit from this base class
-- Returns standardized response format
+**Why Preserved**: 
+- Reference implementation for API integration patterns
+- Rollback capability if Dart implementation has issues
+- Documentation of previous architecture
+
+### 2. New Pure Dart TTS Services Architecture
+
+**Service Structure** (Following Data Layer Conventions):
+- All TTS services are in `lib/speech_synthesis/data/sources/remote/`
+- Services follow naming convention: `{service}_tts_remote_service.dart`
+- Each service is a concrete implementation (no abstract interface needed per conventions)
+- Services return `Result<SpeechResponseDto, SpeechSynthesisError>`
 
 **Service Implementations**:
-- Each service (Gemini, OpenAI, Polly) in separate files
-- Each implements the base interface
-- Handles service-specific authentication and API calls
-- Error handling and retry logic
+- **GeminiTtsRemoteService** (`gemini_tts_remote_service.dart`):
+  - Direct HTTP calls to Google Cloud Text-to-Speech API
+  - OAuth2 authentication (service account key or Application Default Credentials)
+  - Handles Google Cloud API-specific error responses
+  - Maps API errors to domain `SpeechSynthesisError`
+  - Returns `Result<SpeechResponseDto, SpeechSynthesisError>`
+- **OpenAITtsRemoteService** (`openai_tts_remote_service.dart`):
+  - Direct HTTP calls to OpenAI TTS API
+  - API key authentication
+  - Handles OpenAI API-specific error responses
+  - Maps API errors to domain `SpeechSynthesisError`
+  - Returns `Result<SpeechResponseDto, SpeechSynthesisError>`
+- **PollyTtsRemoteService** (`polly_tts_remote_service.dart`):
+  - Future implementation for AWS Polly
+  - AWS SDK authentication
+  - Maps API errors to domain `SpeechSynthesisError`
 
-**Error Handling** (`backend/python/utils/errors.py`):
-- Custom exception classes
-- Error response formatting
-- Error logging utilities
+**Service Factory** (`tts_service_factory.dart`):
+- Creates appropriate service instance based on service type
+- Returns the correct `*TtsRemoteService` instance
+- Centralized service instantiation
+- Easy to add new services
+- Located in `sources/remote/` folder
 
-**FastAPI Server** (`backend/python/main.py`):
-- REST API endpoint: `POST /api/v1/tts/synthesize`
-- Request validation using Pydantic models
-- Service factory to instantiate correct service based on request
-- Error handling middleware
-- Returns audio file (base64 encoded) with metadata
-
-### 2. Flutter Architecture (Dart)
+### 3. Flutter Architecture (Dart)
 
 **Speech Synthesis Feature**:
 
@@ -169,13 +187,31 @@ tts_flutter_test/
   - `ConvertTextToSpeechUseCase`: encapsulates business logic with Result pattern
 
 - **Data Layer**:
-  - `SpeechSynthesisRepositoryImpl`: implements repository interface
-  - `SpeechSynthesisRemoteService`: HTTP client service to call Python backend
-  - `SpeechSynthesisLocalService`: Local storage service for caching
+  - `SpeechSynthesisRepositoryImpl`: implements `ISpeechSynthesisRepository` interface
+    - **NEW**: Uses Dart TTS remote services directly (no platform channels or Python)
+    - **LEGACY**: Old `SpeechSynthesisScriptService` code is commented out
+    - **LEGACY**: Old `SpeechSynthesisRemoteService` code is commented out
+    - Converts DTO → Domain models
+    - Maps data errors → domain errors
+    - Returns `Result<SpeechResponseModel, SpeechSynthesisError>`
+  - `SpeechSynthesisLocalService`: Local storage service for caching (unchanged)
+    - Located in `sources/local/`
+    - Handles SharedPreferences caching
+  - **NEW**: `GeminiTtsRemoteService`, `OpenAITtsRemoteService`, `PollyTtsRemoteService`: Pure Dart HTTP clients
+    - Located in `sources/remote/`
+    - Follow naming convention: `{service}_tts_remote_service.dart`
+    - Return `Result<SpeechResponseDto, SpeechSynthesisError>`
+    - Handle raw data access only, no business logic
+  - **NEW**: `TtsServiceFactory`: Creates appropriate service instance
+    - Located in `sources/remote/`
+    - Factory method returns correct `*TtsRemoteService` instance
   - Uses `http` or `dio` package for API calls
-  - DTOs (`SpeechRequestDto`, `SpeechResponseDto`) with `toDomain()` conversion
+  - DTOs (`SpeechRequestDto`, `SpeechResponseDto`) with `toDomain()` conversion (unchanged)
+    - Located in `dtos/` folder
+    - Must be immutable with `@freezed`
+    - Provide `fromJson`, `toJson`, and `toDomain()` methods
   - Error handling and response parsing
-  - API constants in `speech_synthesis_api_keys.dart`
+  - API constants in `speech_synthesis_api_keys.dart` (located in `constants/` folder)
 
 - **Application Layer**:
   - `SpeechSynthesisState`: Immutable state class with Freezed
@@ -220,7 +256,37 @@ tts_flutter_test/
 - Register repositories, use cases, and services via providers
 - Easy to swap implementations for testing by overriding providers
 
-### 3. SOLID Principles Application
+### 4. Code Preservation Strategy
+
+**Python Backend Isolation**:
+- Move `backend/python/` → `_legacy/backend/python/`
+- Move `scripts/` → `_legacy/scripts/`
+- Add `_legacy/README.md` explaining the legacy code structure
+- Update `.gitignore` if needed (but keep legacy code in repo for rollback)
+
+**Flutter Code Commenting**:
+- Comment out old code with `// [LEGACY]` marker at start of section
+- Add `// [NEW]` marker for new code
+- Keep old code structure intact (don't delete imports, classes, methods)
+- Example:
+  ```dart
+  // [LEGACY] Old script service - commented out for rollback
+  // class SpeechSynthesisScriptService {
+  //   ... old code ...
+  // }
+  
+  // [NEW] Pure Dart TTS service
+  class GeminiTtsService implements ITtsService {
+    ... new code ...
+  }
+  ```
+
+**Platform Code (macOS AppDelegate)**:
+- Comment out Python execution methods with `// [LEGACY]` markers
+- Keep the code structure for reference
+- Add comments explaining the migration
+
+### 5. SOLID Principles Application
 
 - **Single Responsibility**: Each service class handles one TTS provider
 - **Open/Closed**: Add new services by extending base class, no modification needed
@@ -228,7 +294,7 @@ tts_flutter_test/
 - **Interface Segregation**: Minimal interface with only required methods
 - **Dependency Inversion**: Flutter depends on repository interface, not concrete implementations
 
-### 4. Modularity Features
+### 6. Modularity Features
 
 - **Service Factory Pattern**: Backend uses factory to create service instances
 - **Strategy Pattern**: Flutter can switch services at runtime
@@ -237,17 +303,31 @@ tts_flutter_test/
 
 ## Key Files to Create/Modify
 
-### Backend (Python)
-1. `backend/python/main.py` - FastAPI server with TTS endpoint
-2. `backend/python/config.py` - Configuration and environment variables
-3. `backend/python/models/request.py` - Request models (Pydantic)
-4. `backend/python/models/response.py` - Response models (Pydantic)
-5. `backend/python/services/base.py` - Base TTS service interface
-6. `backend/python/services/gemini.py` - Gemini implementation
-7. `backend/python/services/openai.py` - OpenAI implementation
-8. `backend/python/services/polly.py` - Amazon Polly implementation
-9. `backend/python/utils/errors.py` - Error handling utilities
-10. `backend/python/requirements.txt` - Python dependencies
+### Legacy Code Isolation (Preserve, Don't Delete)
+1. **Move** `backend/python/` → `_legacy/backend/python/` (entire directory)
+2. **Move** `scripts/` → `_legacy/scripts/` (entire directory)
+3. **Comment out** Python execution code in `macos/Runner/AppDelegate.swift`:
+   - `executeTTSScript()` method - comment with `// [LEGACY]`
+   - `findPythonExecutable()` method - comment with `// [LEGACY]`
+   - Keep code structure for reference
+
+### New Dart TTS Services (Pure Flutter Implementation)
+1. `lib/speech_synthesis/data/sources/remote/gemini_tts_remote_service.dart` - Gemini TTS API client
+2. `lib/speech_synthesis/data/sources/remote/openai_tts_remote_service.dart` - OpenAI TTS API client
+3. `lib/speech_synthesis/data/sources/remote/polly_tts_remote_service.dart` - AWS Polly TTS (future)
+4. `lib/speech_synthesis/data/sources/remote/tts_service_factory.dart` - Service factory
+
+### Flutter Code Updates (Comment Old, Add New)
+6. `lib/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart`:
+   - **Comment out** entire class with `// [LEGACY]` markers
+   - Keep file structure for rollback reference
+7. `lib/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart`:
+   - **Comment out** entire class with `// [LEGACY]` markers (if not needed)
+   - Keep file structure for rollback reference
+8. `lib/speech_synthesis/data/repositories/speech_synthesis_repository_impl.dart`:
+   - **Comment out** old script service usage
+   - **Add** new Dart TTS service usage via factory
+   - Keep old code commented for rollback
 
 ### Speech Synthesis Feature (Flutter)
 11. `lib/speech_synthesis/domain/entities/tts_service_model.dart` - Service enum/model
@@ -299,8 +379,7 @@ tts_flutter_test/
 
 ## Dependencies
 
-**Python Backend**:
-
+**Legacy Python Backend** (Isolated in `_legacy/`, not used):
 - fastapi
 - uvicorn
 - google-generativeai (Gemini)
@@ -308,7 +387,7 @@ tts_flutter_test/
 - boto3 (Amazon Polly)
 - pydantic
 
-**Flutter**:
+**Flutter** (New Implementation):
 
 - **Domain Layer**:
   - `freezed_annotation`: ^2.4.1 - For sealed classes and unions
@@ -316,35 +395,180 @@ tts_flutter_test/
   - `freezed`: ^2.4.7 (dev) - Code generation for Freezed
   - `build_runner`: ^2.4.8 (dev) - Code generation tool
 - **Data Layer**:
-  - http or dio - HTTP client for API calls
+  - `http` or `dio` - HTTP client for API calls (for direct TTS API integration)
+  - `googleapis` or `googleapis_auth` (optional) - For Google Cloud OAuth2 authentication
+  - `crypto` - For OAuth2 token generation if needed
 - **Application Layer**:
   - flutter_riverpod - State management and dependency injection
 - **Presentation Layer**:
   - audioplayers or just_audio - Audio playback
   - shared_preferences - Settings persistence
 
-## Next Steps
+## Conventions Compliance
 
-1. Set up Python backend structure with FastAPI
-2. Create configuration file for environment variables and API keys
-3. Define Pydantic models for request/response validation
-4. Implement base TTS service interface
-5. Implement each TTS service provider (Gemini, OpenAI, Polly)
-6. Add error handling utilities and middleware
-7. Set up core layer (constants with `k_sizes.dart`, DI with `core_providers.dart`, logger, app errors)
-8. **Speech Synthesis Feature**:
-   - Create domain layer (entities with `_model.dart` suffix, repository interface with `i_` prefix, use cases in `use_cases/` folder)
-   - Implement data layer (DTOs in `dtos/`, services in `sources/remote/` and `sources/local/`, repository implementation)
-   - Create application layer (state with Freezed, notifier, Riverpod providers)
-   - Build presentation layer (pages, widgets with `_widget.dart` suffix, optional UI controllers)
-   - Add configuration management for API keys in `speech_synthesis_api_keys.dart`
-9. **Audio Playback Feature**:
-   - Create application layer (state with Freezed, notifier, Riverpod providers)
-   - Build audio player widget using audioplayers/just_audio package
-10. **Settings Feature**:
-   - Create application layer (state with Freezed, notifier, Riverpod providers)
-   - Use shared_preferences directly for persistence
-   - Build settings page and widgets
-11. Set up dependency injection with Riverpod providers for all features
-12. Add error handling and loading states across all features
-13. Write unit tests for each feature and layer
+This plan follows the project's clean architecture conventions:
+
+### **Data Layer Conventions**
+- ✅ Services in `sources/remote/` for HTTP/API calls
+- ✅ Services in `sources/local/` for cache/SharedPreferences
+- ✅ Service naming: `{service}_tts_remote_service.dart` or `{service}_local_service.dart`
+- ✅ DTOs in `dtos/` folder with `_dto.dart` suffix
+- ✅ DTOs must be immutable with `@freezed`
+- ✅ DTOs must provide `fromJson`, `toJson`, and `toDomain()` methods
+- ✅ Repository implementations in `repositories/` with `_repository_impl.dart` suffix
+- ✅ API constants in `constants/` folder with `_api_keys.dart` suffix
+- ✅ Services return `Result<T, E>` for all fallible operations
+- ✅ Services handle raw data access only, no business logic
+- ✅ Repository converts DTO → Domain and maps data errors → domain errors
+
+### **Domain Layer Conventions**
+- ✅ Entities in `entities/` folder with `_model.dart` suffix
+- ✅ Value objects in `value_objects/` folder with `_vo.dart` suffix (optional)
+- ✅ Repository interfaces in `repositories/` with `i_` prefix and `_repository.dart` suffix
+- ✅ Errors in `errors/` folder with `_error.dart` suffix
+- ✅ Use cases in `use_cases/` folder with `_use_case.dart` suffix (optional)
+- ✅ Models must be immutable with `@freezed`
+- ✅ Repository interfaces return `Result<T, E>`
+
+### **Application Layer Conventions**
+- ✅ State classes in `state/` folder with `_state.dart` suffix
+- ✅ Notifiers in `state/` folder with `_notifier.dart` suffix
+- ✅ Providers in `providers/` folder with `_providers.dart` suffix
+- ✅ State must be immutable with `@freezed`
+- ✅ State uses `DataState<T>` for loading/success/failure states
+- ✅ Notifiers extend `StateNotifier<FeatureState>` or `AsyncNotifier<FeatureState>`
+
+### **Presentation Layer Conventions**
+- ✅ Pages in `pages/` folder with `_page.dart` suffix
+- ✅ Widgets in `widgets/` folder with `_widget.dart` suffix
+- ✅ UI-only providers in `controllers/` folder with `_ui_provider.dart` suffix (optional)
+- ✅ Pages use `ConsumerWidget` or `ConsumerStatefulWidget`
+- ✅ Use `ref.watch()` for state consumption
+- ✅ Use `ref.read()` for triggering actions
+- ✅ Use `KSizes` for all spacing and layout constants
+
+## Refactoring Steps (Python to Dart Migration)
+
+### Phase 1: Isolate Legacy Code (Preserve for Rollback)
+1. **Move Python Backend**:
+   - Create `_legacy/` directory
+   - Move `backend/python/` → `_legacy/backend/python/`
+   - Move `scripts/` → `_legacy/scripts/`
+   - Add `_legacy/README.md` explaining legacy structure
+
+2. **Comment Out Platform Code**:
+   - In `macos/Runner/AppDelegate.swift`:
+     - Comment out `executeTTTScript()` method with `// [LEGACY]` markers
+     - Comment out `findPythonExecutable()` method with `// [LEGACY]` markers
+     - Keep code structure intact for reference
+
+3. **Comment Out Flutter Legacy Services**:
+   - In `lib/speech_synthesis/data/sources/local/speech_synthesis_script_service.dart`:
+     - Comment out entire class with `// [LEGACY]` markers
+     - Keep file and class structure for rollback
+   - In `lib/speech_synthesis/data/sources/remote/speech_synthesis_remote_service.dart`:
+     - Comment out if not needed, or keep if web platform still uses it
+
+### Phase 2: Create New Dart TTS Services
+4. **Implement Gemini Remote Service**:
+   - `lib/speech_synthesis/data/sources/remote/gemini_tts_remote_service.dart`
+   - HTTP client for Google Cloud TTS API
+   - OAuth2 authentication handling
+   - Error mapping to domain `SpeechSynthesisError`
+   - Returns `Result<SpeechResponseDto, SpeechSynthesisError>`
+   - Follows data layer conventions: raw data access only, no business logic
+
+5. **Implement OpenAI Remote Service**:
+   - `lib/speech_synthesis/data/sources/remote/openai_tts_remote_service.dart`
+   - HTTP client for OpenAI TTS API
+   - API key authentication
+   - Error mapping to domain `SpeechSynthesisError`
+   - Returns `Result<SpeechResponseDto, SpeechSynthesisError>`
+   - Follows data layer conventions: raw data access only, no business logic
+
+6. **Create Service Factory**:
+   - `lib/speech_synthesis/data/sources/remote/tts_service_factory.dart`
+   - Factory method to create service instances based on service type
+   - Returns appropriate `*TtsRemoteService` instance
+
+### Phase 3: Update Repository
+8. **Update Repository Implementation**:
+   - In `lib/speech_synthesis/data/repositories/speech_synthesis_repository_impl.dart`:
+     - Comment out old script service usage with `// [LEGACY]` markers
+     - Add new Dart TTS service usage via factory
+     - Keep old code commented for rollback reference
+   - Remove platform-specific logic (no more `kIsWeb` check for script vs remote)
+   - All platforms use same Dart services
+
+### Phase 4: Update Configuration
+9. **Update API Key Management**:
+   - Move API keys to Dart constants or environment variables
+   - Handle Google Cloud service account key file reading in Dart
+   - Update `speech_synthesis_api_keys.dart` if needed
+
+### Phase 5: Update Dependencies
+10. **Update pubspec.yaml**:
+    - Add `http` or `dio` package if not already present
+    - Add `googleapis` or `googleapis_auth` for Google Cloud auth (if needed)
+    - Remove any Python-related dependencies (if any)
+
+### Phase 6: Testing & Validation
+11. **Test Each Service**:
+    - Test Gemini service with real API calls
+    - Test OpenAI service with real API calls
+    - Verify error handling works correctly
+    - Verify audio playback still works with new services
+
+12. **Rollback Plan**:
+    - If issues arise, uncomment legacy code
+    - Move `_legacy/backend/python/` back to `backend/python/`
+    - Move `_legacy/scripts/` back to `scripts/`
+    - Uncomment platform channel code in AppDelegate
+
+## Architecture Flow (After Refactoring)
+
+```
+User selects service (Gemini/OpenAI)
+    ↓
+Presentation Layer (speech_synthesis_page.dart)
+    ↓
+Application Layer (SpeechSynthesisNotifier)
+    ↓
+Domain Layer (ISpeechSynthesisRepository interface)
+    ↓
+Data Layer (SpeechSynthesisRepositoryImpl)
+    ↓
+TTS Service Factory (creates appropriate service)
+    ↓
+GeminiTtsRemoteService / OpenAITtsRemoteService (Pure Dart HTTP client)
+    ↓
+Direct HTTP call to TTS provider API
+    ↓
+Returns Result<SpeechResponseDto, SpeechSynthesisError>
+    ↓
+Repository converts DTO → Domain (SpeechResponseModel)
+    ↓
+Repository saves audio to file
+    ↓
+Returns Result<SpeechResponseModel, SpeechSynthesisError>
+    ↓
+Application Layer updates state
+    ↓
+Presentation Layer displays result
+    ↓
+Audio Player (existing, no changes)
+```
+
+## Benefits of Pure Dart Implementation
+
+- ✅ **No Python Dependency**: Pure Flutter/Dart codebase
+- ✅ **Cross-Platform**: Works on all Flutter platforms (iOS, Android, Web, Desktop)
+- ✅ **Easier Maintenance**: Single codebase, no process spawning
+- ✅ **Better Performance**: Direct HTTP calls, no subprocess overhead
+- ✅ **Easier Testing**: Pure Dart unit tests, no platform channel mocking needed
+- ✅ **Simpler Deployment**: No Python installation required
+- ✅ **Rollback Capability**: Legacy code preserved for easy rollback if needed
+- ✅ **Follows Clean Architecture**: Proper layer separation with conventions
+- ✅ **Consistent Naming**: Follows project naming conventions (`_remote_service.dart`, `_dto.dart`, etc.)
+- ✅ **Type Safety**: Uses `Result<T, E>` pattern for error handling
+- ✅ **Testable**: Services can be easily mocked for repository tests

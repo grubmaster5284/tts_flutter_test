@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:media_key_detector/media_key_detector.dart';
 import 'package:tts_flutter_test/audio_playback/application/providers/audio_playback_providers.dart';
@@ -15,8 +16,19 @@ import 'package:tts_flutter_test/speech_synthesis/presentation/pages/speech_synt
 /// This function initializes the Flutter app with a ProviderScope, which is required
 /// for Riverpod state management. ProviderScope provides the dependency injection
 /// container that manages all providers throughout the app lifecycle.
-void main() {
+/// 
+/// It also loads environment variables from .env file for configuration.
+Future<void> main() async {
   AppLogger.info('App starting', tag: 'App');
+  
+  // Load environment variables from .env file (if it exists)
+  try {
+    await dotenv.load(fileName: '.env');
+    AppLogger.info('Environment variables loaded from .env file', tag: 'App');
+  } catch (e) {
+    // .env file is optional - app can still work with other credential methods
+    AppLogger.debug('No .env file found or error loading it (this is OK)', tag: 'App', data: e);
+  }
   
   runApp(
     const ProviderScope(
@@ -198,6 +210,7 @@ class _AudioPlayerTestPageState extends ConsumerState<AudioPlayerTestPage> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: _audioUrlController,
+                        textDirection: TextDirection.ltr,
                         decoration: InputDecoration(
                           labelText: 'Audio URL or File Path',
                           hintText: 'Enter audio URL or select a file',
